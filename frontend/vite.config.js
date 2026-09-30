@@ -7,6 +7,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: "autoUpdate",
+      // don't minify sw.js with terser: that step is slow and memory-hungry
+      // and made `docker compose build` hang on the small prod server
+      mode: "development",
       // icons are generated from public/icon.svg by `npm run icons`
       includeAssets: ["favicon.ico", "apple-touch-icon-180x180.png", "icon.svg"],
       manifest: {
