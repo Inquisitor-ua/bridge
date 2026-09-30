@@ -29,9 +29,29 @@ npm run dev
 ```
 
 Открыть http://localhost:5173 — dev-сервер Vite проксирует `/ws` на бэкенд
-(см. `frontend/vite.config.js`). Для продакшена собрать `npm run build` и
-отдавать `frontend/dist` статикой (например тем же nginx, что и другие
-проекты в этом репозитории), с проксированием `/ws` на uvicorn.
+(см. `frontend/vite.config.js`).
+
+## Деплой (Docker)
+
+Один контейнер `bridge-app`: на этапе сборки Node собирает фронтенд, а в
+рантайме uvicorn отдаёт и `frontend/dist` (статикой через FastAPI), и
+WebSocket `/ws`. Воркер строго один — комнаты и партии живут в памяти
+процесса, поэтому перезапуск контейнера обрывает все текущие игры.
+
+Снаружи его видит общий `edge-nginx` из `../nginx-proxy` через внешнюю
+сеть `edge` (порты на хост не публикуются); маршрут для
+`bridge.yehor-inq.com` — в `../nginx-proxy/conf.d/bridge.conf`.
+
+На сервере (рядом с `nginx-proxy`, например `/srv/bridge`):
+
+```
+cd /srv/bridge && docker compose up -d --build
+cd /srv/nginx-proxy && git pull && docker compose restart nginx
+```
+
+В Cloudflare: DNS-запись `bridge` (A на IP сервера, оранжевое облако);
+WebSocket в Cloudflare включён по умолчанию. Origin-сертификат
+`*.yehor-inq.com` уже покрывает этот поддомен.
 
 ## Реализованные правила
 
@@ -167,4 +187,6 @@ backend/
 frontend/
   src/store.js              WebSocket-клиент и реактивное состояние
   src/components/           Lobby, WaitingRoom, GameTable, PlayingCard, промпты
+Dockerfile          сборка фронтенда + рантайм uvicorn
+docker-compose.yml  контейнер bridge-app в сети edge
 ```

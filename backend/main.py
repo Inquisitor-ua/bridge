@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .engine import GameError
 from .room_manager import RoomManager, parse_cards
@@ -139,3 +143,12 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             room.sockets.pop(player.id, None)
             player.connected = False
             await broadcast_room(room)
+
+
+# In production (Docker) the built frontend is served by this same process, so
+# one container handles both the page and /ws. Mounted last so the /ws route
+# above takes priority. In dev the folder usually doesn't exist and Vite serves
+# the frontend instead.
+STATIC_DIR = Path(os.environ.get("BRIDGE_STATIC_DIR", Path(__file__).resolve().parent.parent / "frontend" / "dist"))
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

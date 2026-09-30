@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: bridge-app
+    restart: unless-stopped
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
