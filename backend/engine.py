@@ -727,6 +727,7 @@ class Engine:
 
     def _end_round(self, winner: Player | None, last_played_rank: int | None, last_played_count: int) -> None:
         self.round_active = False
+        self._deliver_final_penalty()
         if winner is not None:
             ended_on_jack = last_played_rank == 11
             self.round_end_info = {
@@ -740,6 +741,20 @@ class Engine:
             return
         self._finalize_scores(exclude_winner=winner is not None, extra_multiplier=1)
         self._after_scoring()
+
+    def _deliver_final_penalty(self) -> None:
+        """The round ended (player went out or declared Bridge) with 7/8/Q♠
+        penalties still pending: the next player takes the forced draw before
+        hands are scored (the skip no longer matters)."""
+        if self.pending_draw > 0:
+            victim = self.players[self._next_index(self.turn_index)]
+            n = self.pending_draw
+            drawn = [self._draw_one(victim) for _ in range(n)]
+            drawn = [c for c in drawn if c]
+            self._stat(victim, "penalty_drawn", len(drawn))
+            self._say(f"{victim.name} берёт {len(drawn)} карт(ы) (штраф).")
+        self.pending_draw = 0
+        self.pending_skip = 0
 
     def _finalize_scores(self, exclude_winner: bool, extra_multiplier: int) -> None:
         winner_ids = set()

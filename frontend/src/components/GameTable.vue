@@ -272,7 +272,7 @@ function snapBack(originRect) {
       <div
         ref="tableAreaEl"
         class="table-area"
-        :class="{ 'drop-ready': drag.active && drag.phase === 'drag', 'drop-hover': drag.active && drag.overTable }"
+        :class="{ 'my-turn': isMyTurn && !prompt && !game.awaiting_continue, 'drop-ready': drag.active && drag.phase === 'drag', 'drop-hover': drag.active && drag.overTable }"
         @click="commitSelection"
       >
         <div class="pile">
