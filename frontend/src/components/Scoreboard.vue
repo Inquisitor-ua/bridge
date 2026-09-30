@@ -4,6 +4,10 @@ import { state } from "../store.js";
 
 const players = computed(() => state.game?.players || []);
 const turnId = computed(() => state.game?.turn_player_id);
+
+function initial(name) {
+  return (name || "?").trim().charAt(0).toUpperCase();
+}
 </script>
 
 <template>
@@ -11,13 +15,22 @@ const turnId = computed(() => state.game?.turn_player_id);
     <li
       v-for="p in players"
       :key="p.id"
+      class="player-chip"
       :class="{ turn: p.id === turnId, eliminated: p.eliminated, me: p.id === state.playerId }"
     >
-      <span class="dot" :class="{ off: !p.connected }"></span>
-      <span class="name">{{ p.name }}</span>
-      <span class="hand-count">{{ p.hand_count }} карт</span>
-      <span class="score">{{ p.score }} оч.</span>
-      <span v-if="p.eliminated" class="badge">выбыл</span>
+      <span class="avatar" :class="{ off: !p.connected }">{{ initial(p.name) }}</span>
+      <span class="player-info">
+        <span class="name">
+          {{ p.name }}
+          <span v-if="p.id === state.playerId" class="you">вы</span>
+        </span>
+        <span class="meta">
+          <span class="meta-cards">{{ p.hand_count }} карт</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-score">{{ p.score }}</span>
+        </span>
+      </span>
+      <span v-if="p.eliminated" class="tag danger">выбыл</span>
     </li>
   </ul>
 </template>

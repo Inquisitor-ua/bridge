@@ -238,17 +238,26 @@ function snapBack(originRect) {
     <Scoreboard />
 
     <div v-if="game.game_over" class="standings">
-      <h2>Игра окончена!</h2>
-      <ol>
-        <li v-for="s in game.standings" :key="s.id">
-          {{ s.name }} — {{ s.score }} очк. <span v-if="s.eliminated">(выбыл)</span>
+      <p class="overline">Партия завершена</p>
+      <h2 class="standings-title">Итоги игры</h2>
+      <ol class="standings-list">
+        <li v-for="(s, i) in game.standings" :key="s.id" :class="{ winner: i === 0 && !s.eliminated, me: s.id === state.playerId }">
+          <span class="standings-place">{{ i + 1 }}</span>
+          <span class="standings-name">
+            {{ s.name }}
+            <span v-if="s.id === state.playerId" class="you">вы</span>
+          </span>
+          <span v-if="s.eliminated" class="tag danger">выбыл</span>
+          <span v-else-if="i === 0" class="tag gold">победитель</span>
+          <span class="standings-score">{{ s.score }}</span>
         </li>
       </ol>
-      <button class="ghost" @click="leaveRoom">В лобби</button>
+      <button class="primary" @click="leaveRoom">Вернуться в лобби</button>
     </div>
 
     <template v-else>
-      <div class="turn-banner" :class="{ mine: isMyTurn }">
+      <div class="turn-banner" :class="{ mine: isMyTurn && !prompt && !game.awaiting_continue }">
+        <span class="turn-dot"></span>
         <span v-if="game.awaiting_continue">Раздача завершена — ждём, пока все нажмут «Продолжить»</span>
         <span v-else-if="prompt">Ожидаем решение игрока {{ promptOwnerName }}…</span>
         <span v-else-if="isMyTurn && mustCoverSix">Нужно накрыть шестёрку — тяните карты, пока не найдётся подходящая</span>
@@ -256,7 +265,7 @@ function snapBack(originRect) {
         <span v-else-if="isMyTurn && game.has_played_this_turn">Можно доложить ещё карт того же номинала или закончить ход</span>
         <span v-else-if="isMyTurn">Ваш ход</span>
         <span v-else>
-          Ход: {{ (game.players || []).find(p => p.id === game.turn_player_id)?.name || "…" }}
+          Ходит {{ (game.players || []).find(p => p.id === game.turn_player_id)?.name || "…" }}
         </span>
       </div>
 
@@ -266,30 +275,48 @@ function snapBack(originRect) {
         :class="{ 'drop-ready': drag.active && drag.phase === 'drag', 'drop-hover': drag.active && drag.overTable }"
         @click="commitSelection"
       >
-        <div class="deck-pile" :title="`В колоде: ${game.deck_count}`" @click.stop="canAct && game.can_draw && drawCard()">
-          <div class="deck-stack-shadow s2"></div>
-          <div class="deck-stack-shadow s1"></div>
-          <PlayingCard :card="null" face-down :class="{ pulse: deckPulse }" />
-          <span class="deck-count">{{ game.deck_count }}</span>
-          <span v-if="game.multiplier > 1" class="multiplier">x{{ game.multiplier }}</span>
+        <div class="pile">
+          <div
+            class="deck-pile"
+            :class="{ drawable: canAct && game.can_draw }"
+            :title="`В колоде: ${game.deck_count}`"
+            @click.stop="canAct && game.can_draw && drawCard()"
+          >
+            <div class="deck-stack-shadow s2"></div>
+            <div class="deck-stack-shadow s1"></div>
+            <PlayingCard :card="null" face-down :class="{ pulse: deckPulse }" />
+            <span v-if="game.multiplier > 1" class="multiplier">×{{ game.multiplier }}</span>
+          </div>
+          <span class="pile-label">Колода <b>{{ game.deck_count }}</b></span>
         </div>
 
-        <div class="discard-pile">
-          <Transition name="table-card">
-            <PlayingCard v-if="game.table_top" :card="game.table_top" :key="cardKey(game.table_top)" />
-          </Transition>
-          <span v-if="game.declared_suit" class="declared-suit">
-            масть: {{ { hearts: "♥", diamonds: "♦", clubs: "♣", spades: "♠" }[game.declared_suit] }}
+        <div class="pile">
+          <div class="discard-pile">
+            <div v-if="!game.table_top" class="card-slot"></div>
+            <Transition name="table-card">
+              <PlayingCard v-if="game.table_top" :card="game.table_top" :key="cardKey(game.table_top)" />
+            </Transition>
+          </div>
+          <span class="pile-label">
+            <template v-if="game.declared_suit">
+              Масть
+              <b class="declared-suit" :class="{ red: game.declared_suit === 'hearts' || game.declared_suit === 'diamonds' }">
+                {{ { hearts: "♥", diamonds: "♦", clubs: "♣", spades: "♠" }[game.declared_suit] }}
+              </b>
+            </template>
+            <template v-else>Стол</template>
           </span>
         </div>
+
+        <span v-if="drag.active && drag.phase === 'drag'" class="drop-hint">Отпустите, чтобы сыграть</span>
       </div>
 
       <div class="log-panel">
-        <p v-for="(line, i) in (game.log || []).slice(-6)" :key="i">{{ line }}</p>
+        <p v-for="(line, i) in (game.log || []).slice(-4)" :key="i">{{ line }}</p>
       </div>
 
       <div class="hand-panel">
-        <TransitionGroup tag="div" name="hand" class="hand">
+        <TransitionGroup tag="div" name="hand" class="hand" :class="{ acting: canAct }">
           <div
             v-for="(card, i) in myHand"
             :key="cardKey(card)"
@@ -302,10 +329,12 @@ function snapBack(originRect) {
             <PlayingCard :card="card" :selected="isSelected(card)" :playable="isPlayable(card)" />
           </div>
         </TransitionGroup>
-        <div v-if="canAct" class="hand-actions">
-          <button v-if="selected.length" class="primary" @click="commitSelection">
-            Сыграть ({{ selected.length }})
-          </button>
+        <div class="hand-actions" :class="{ hidden: !canAct }">
+          <Transition name="pop">
+            <button v-if="selected.length" class="primary" @click="commitSelection">
+              Сыграть <span class="btn-count">{{ selected.length }}</span>
+            </button>
+          </Transition>
           <button
             class="ghost"
             :disabled="!game.can_draw"

@@ -1,29 +1,64 @@
 <script setup>
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import { state, startGame, leaveRoom } from "../store.js";
+
+const MAX_PLAYERS = 6;
 
 const players = computed(() => state.game?.lobby_players || []);
 const isHost = computed(() => state.playerId === state.hostId);
-const canStart = computed(() => players.value.length >= 2 && players.value.length <= 6);
+const canStart = computed(() => players.value.length >= 2 && players.value.length <= MAX_PLAYERS);
+const emptySeats = computed(() => Math.max(0, MAX_PLAYERS - players.value.length));
+
+const copied = ref(false);
+function copyCode() {
+  navigator.clipboard?.writeText(state.room).then(() => {
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 1400);
+  });
+}
+
+function initial(name) {
+  return (name || "?").trim().charAt(0).toUpperCase();
+}
 </script>
 
 <template>
   <div class="waiting">
-    <h2>Комната {{ state.room }}</h2>
-    <p>Ждём игроков (от 2 до 6)…</p>
-    <ul class="player-list">
-      <li v-for="p in players" :key="p.id">
-        {{ p.name }}
-        <span v-if="p.id === state.hostId" class="badge">хост</span>
-        <span v-if="p.id === state.playerId" class="badge me">вы</span>
-      </li>
-    </ul>
+    <div class="waiting-card">
+      <p class="overline">Код комнаты</p>
+      <button class="room-big" :title="'Скопировать код'" @click="copyCode">
+        <span v-for="(ch, i) in state.room" :key="i" class="room-big-char">{{ ch }}</span>
+      </button>
+      <p class="waiting-hint">{{ copied ? "Код скопирован" : "Поделитесь кодом с друзьями — нажмите, чтобы скопировать" }}</p>
 
-    <button v-if="isHost" class="primary" :disabled="!canStart" @click="startGame">
-      Начать игру ({{ players.length }}/6)
-    </button>
-    <p v-else>Ждите, пока хост начнёт игру.</p>
+      <div class="seat-header">
+        <span>Игроки</span>
+        <span class="seat-count">{{ players.length }} / {{ MAX_PLAYERS }}</span>
+      </div>
 
-    <button class="ghost" @click="leaveRoom">Выйти</button>
+      <TransitionGroup tag="ul" name="seat" class="seat-list">
+        <li v-for="p in players" :key="p.id" class="seat" :class="{ me: p.id === state.playerId }">
+          <span class="avatar">{{ initial(p.name) }}</span>
+          <span class="seat-name">{{ p.name }}</span>
+          <span v-if="p.id === state.hostId" class="tag gold">хост</span>
+          <span v-if="p.id === state.playerId" class="tag">вы</span>
+        </li>
+        <li v-for="n in emptySeats" :key="'empty-' + n" class="seat empty">
+          <span class="avatar"></span>
+          <span class="seat-name">Свободное место</span>
+        </li>
+      </TransitionGroup>
+
+      <div class="waiting-actions">
+        <button v-if="isHost" class="primary block" :disabled="!canStart" @click="startGame">
+          {{ canStart ? "Начать игру" : "Нужно минимум 2 игрока" }}
+        </button>
+        <p v-else class="waiting-note">
+          <span class="pulse-dot"></span>
+          Ожидаем, пока хост начнёт игру
+        </p>
+        <button class="ghost block" @click="leaveRoom">Покинуть комнату</button>
+      </div>
+    </div>
   </div>
 </template>

@@ -64,12 +64,12 @@ function bestIn(key) {
 
 // ---- highlights: short "awards" for the round's standout numbers ----
 const HIGHLIGHTS = [
-  { key: "penalty_dealt", icon: "🎯", title: "Снайпер", text: (n) => `выдал(а) соперникам ${n} штрафн. карт` },
-  { key: "biggest_play", icon: "💥", title: "Комбо", text: (n) => `выложил(а) ${n} карты за один ход`, min: 2 },
-  { key: "_taken", icon: "🧲", title: "Коллекционер", text: (n) => `набрал(а) ${n} карт из колоды` },
-  { key: "turns_skipped", icon: "💤", title: "Отдыхающий", text: (n) => `пропустил(а) ${n} ход(а)` },
-  { key: "jacks_played", icon: "🃏", title: "Любитель валетов", text: (n) => `сыграл(а) ${n} валет(а)`, min: 2 },
-  { key: "max_hand", icon: "🗂️", title: "Полные руки", text: (n) => `держал(а) до ${n} карт одновременно`, min: 8 },
+  { key: "penalty_dealt", icon: "◎", title: "Снайпер", text: (n) => `выдал(а) соперникам ${n} штрафн. карт` },
+  { key: "biggest_play", icon: "✦", title: "Комбо", text: (n) => `выложил(а) ${n} карты за один ход`, min: 2 },
+  { key: "_taken", icon: "◈", title: "Коллекционер", text: (n) => `набрал(а) ${n} карт из колоды` },
+  { key: "turns_skipped", icon: "☾", title: "Отдыхающий", text: (n) => `пропустил(а) ${n} ход(а)` },
+  { key: "jacks_played", icon: "J", title: "Любитель валетов", text: (n) => `сыграл(а) ${n} валет(а)`, min: 2 },
+  { key: "max_hand", icon: "▤", title: "Полные руки", text: (n) => `держал(а) до ${n} карт одновременно`, min: 8 },
 ];
 
 function statValue(row, key) {
@@ -118,6 +118,7 @@ const waiting = computed(() => !!game.value.awaiting_continue);
           :class="{ me: r.id === state.playerId, winner: r.id === summary.player_id && summary.reason !== 'bridge' }"
         >
           <div class="rs-name">
+            <span v-if="r.id === summary.player_id && summary.reason !== 'bridge'" class="rs-crown">♛</span>
             {{ r.name }}
             <span v-if="r.id === state.playerId" class="rs-you">вы</span>
           </div>
@@ -130,8 +131,8 @@ const waiting = computed(() => !!game.value.awaiting_continue);
             <span class="rs-before">{{ r.score_before }}</span>
             <span class="rs-arrow">→</span>
             <b>{{ r.score_after }}</b>
-            <span v-if="r.reset" class="badge rs-badge ok">ровно 125 — обнуление!</span>
-            <span v-else-if="r.eliminated" class="badge rs-badge">выбыл(а)</span>
+            <span v-if="r.reset" class="tag success rs-badge">125 — обнуление</span>
+            <span v-else-if="r.eliminated" class="tag danger rs-badge">выбыл(а)</span>
           </div>
         </div>
       </div>
@@ -182,7 +183,7 @@ const waiting = computed(() => !!game.value.awaiting_continue);
               class="rs-ready-pill"
               :class="{ ready: readyIds.has(p.id) }"
             >
-              {{ readyIds.has(p.id) ? "✓" : "…" }} {{ p.name }}
+              <span class="rs-ready-mark">{{ readyIds.has(p.id) ? "✓" : "" }}</span>{{ p.name }}
             </span>
           </div>
           <button v-if="iAmIn" class="primary rs-continue" :disabled="iAmReady" @click="continueRound">

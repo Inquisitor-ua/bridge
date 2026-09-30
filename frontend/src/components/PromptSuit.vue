@@ -3,10 +3,10 @@ import { computed } from "vue";
 import { state, declareSuit } from "../store.js";
 
 const SUITS = [
-  { id: "hearts", symbol: "♥", red: true },
-  { id: "diamonds", symbol: "♦", red: true },
-  { id: "clubs", symbol: "♣", red: false },
-  { id: "spades", symbol: "♠", red: false },
+  { id: "hearts", symbol: "♥", red: true, name: "Черви" },
+  { id: "diamonds", symbol: "♦", red: true, name: "Бубны" },
+  { id: "clubs", symbol: "♣", red: false, name: "Трефы" },
+  { id: "spades", symbol: "♠", red: false, name: "Пики" },
 ];
 
 // how many cards of each suit are left in hand (jacks are wild, so they
@@ -24,6 +24,7 @@ const best = computed(() => Math.max(...Object.values(counts.value)));
 <template>
   <div class="modal-backdrop clear">
     <div class="modal">
+      <p class="overline">Валет сыгран</p>
       <h3>Выберите масть</h3>
       <div class="suit-grid">
         <button
@@ -31,13 +32,14 @@ const best = computed(() => Math.max(...Object.values(counts.value)));
           :key="s.id"
           class="suit-btn"
           :class="{ red: s.red, best: best > 0 && counts[s.id] === best }"
+          :title="s.name"
           @click="declareSuit(s.id)"
         >
-          {{ s.symbol }}
+          <span class="suit-symbol">{{ s.symbol }}</span>
           <span class="suit-count">{{ counts[s.id] }} на руке</span>
         </button>
       </div>
-      <p class="suit-hint">Ваши карты видны ниже — подсвечена масть, которой у вас больше всего</p>
+      <p class="suit-hint">Отмечена масть, которой у вас больше всего</p>
     </div>
   </div>
 </template>

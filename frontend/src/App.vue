@@ -16,18 +16,34 @@ function onLeave() {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'is-lobby': !inRoom }">
     <header class="app-header">
-      <h1>Бридж</h1>
-      <span v-if="state.room" class="room-code">Комната: {{ state.room }}</span>
-      <span class="conn-dot" :class="{ ok: state.connected }" :title="state.connected ? 'подключено' : 'нет связи'"></span>
-      <button v-if="inRoom" class="ghost leave-btn" @click="onLeave">Выйти</button>
+      <div class="brand">
+        <span class="brand-mark">♠</span>
+        <span class="brand-name">Бридж</span>
+      </div>
+
+      <div class="header-meta">
+        <span v-if="state.room" class="room-code">
+          <span class="room-code-label">Комната</span>
+          <span class="room-code-value">{{ state.room }}</span>
+        </span>
+        <span class="conn" :class="{ ok: state.connected }" :title="state.connected ? 'подключено' : 'нет связи'">
+          <span class="conn-dot"></span>
+          <span class="conn-label">{{ state.connected ? "online" : "offline" }}</span>
+        </span>
+        <button v-if="inRoom" class="ghost small" @click="onLeave">Выйти</button>
+      </div>
     </header>
 
-    <p v-if="state.error" class="error-banner">{{ state.error }}</p>
+    <Transition name="banner">
+      <p v-if="state.error" class="error-banner">{{ state.error }}</p>
+    </Transition>
 
-    <Lobby v-if="!inRoom" />
-    <GameTable v-else-if="started" />
-    <WaitingRoom v-else />
+    <Transition name="view" mode="out-in">
+      <Lobby v-if="!inRoom" key="lobby" />
+      <GameTable v-else-if="started" key="game" />
+      <WaitingRoom v-else key="waiting" />
+    </Transition>
   </div>
 </template>
