@@ -1,5 +1,9 @@
 services:
   app:
+    # built by GitHub Actions (.github/workflows/docker.yml); `build` stays as
+    # a fallback for `docker compose up -d --build` on a machine that can
+    # handle the frontend build
+    image: ghcr.io/inquisitor-ua/bridge:latest
     build: .
     container_name: bridge-app
     restart: unless-stopped
