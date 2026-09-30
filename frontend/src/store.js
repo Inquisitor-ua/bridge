@@ -78,16 +78,37 @@ export function connect() {
     }
   });
 
-  socket.addEventListener("close", () => {
+  const ws = socket;
+  ws.addEventListener("close", () => {
+    // ignore a socket that reconnectNow() already replaced
+    if (socket !== ws) return;
     state.connected = false;
     socket = null;
     setTimeout(connect, 1500);
   });
 
-  socket.addEventListener("message", (ev) => {
+  ws.addEventListener("message", (ev) => {
     handleMessage(JSON.parse(ev.data));
   });
 }
+
+// Mobile browsers and installed PWAs drop the socket while the app is in the
+// background; reconnect (and rejoin via the saved session) as soon as it's back
+// instead of waiting for the close event and the retry timer.
+function reconnectNow() {
+  if (socket && socket.readyState === WebSocket.OPEN) return;
+  if (socket && socket.readyState === WebSocket.CONNECTING) return;
+  const old = socket;
+  socket = null;
+  state.connected = false;
+  if (old) old.close();
+  connect();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") reconnectNow();
+});
+window.addEventListener("online", reconnectNow);
 
 export function createRoom(name) {
   send({ type: "create_room", name });

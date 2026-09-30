@@ -31,6 +31,25 @@ npm run dev
 Открыть http://localhost:5173 — dev-сервер Vite проксирует `/ws` на бэкенд
 (см. `frontend/vite.config.js`).
 
+## PWA (установка на телефон)
+
+Фронтенд собирается как PWA (`vite-plugin-pwa`): манифест, иконки и service
+worker, который кэширует статику. На Android Chrome предложит «Установить
+приложение», на iOS: Safari → «Поделиться» → «На экран Домой». Нужен HTTPS,
+на локальном `localhost` тоже работает. Игра всё равно идёт через `/ws`,
+офлайн она не работает, кэшируется только оболочка.
+
+Иконки генерируются из `frontend/public/icon.svg` (конфиг в
+`frontend/pwa-assets.config.js`), после изменения SVG запустить:
+
+```
+cd frontend
+npm run icons
+```
+
+Service worker обновляется сам (`registerType: "autoUpdate"`): после деплоя
+новая версия подхватывается при следующем открытии.
+
 ## Деплой (Docker)
 
 Один контейнер `bridge-app`: на этапе сборки Node собирает фронтенд, а в
