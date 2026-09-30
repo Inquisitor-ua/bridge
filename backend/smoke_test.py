@@ -87,6 +87,8 @@ def test_jack_wild_and_suit():
     eng.deck = []
     eng.round_active = True
     eng.play_cards(p0.id, [Card(11, "clubs")])
+    assert eng.prompt is None, "the suit is asked for only when the turn is ended"
+    eng.pass_turn(p0.id)
     assert eng.prompt is not None and eng.prompt.kind == "suit"
     eng.declare_suit(p0.id, "spades")
     assert eng.declared_suit == "spades"
@@ -379,6 +381,7 @@ def test_jack_always_ends_the_turn():
     eng.round_active = True
 
     eng.play_cards(p0.id, [Card(11, "hearts")])
+    eng.pass_turn(p0.id)
     eng.declare_suit(p0.id, "diamonds")
     assert eng.current_player().id == p1.id, "the turn must pass immediately once the jack's suit is named"
     print("jack always ends the turn: OK")
@@ -416,7 +419,7 @@ def test_jack_always_playable_regardless_of_top():
     p0, p1 = players
     eng.table = [Card(9, "clubs")]
     eng.turn_index = 0
-    p0.hand = [Card(14, "clubs"), Card(11, "hearts")]
+    p0.hand = [Card(14, "clubs"), Card(11, "hearts"), Card(9, "diamonds")]  # spare card so hand isn't emptied
     p1.hand = [Card(10, "spades")]
     eng.deck = []
     eng.round_active = True
@@ -425,7 +428,9 @@ def test_jack_always_playable_regardless_of_top():
     assert eng.current_player().id == p0.id
 
     eng.play_cards(p0.id, [Card(11, "hearts")])  # jack doesn't match the ace by suit or rank, but is wild
-    assert eng.prompt is not None and eng.prompt.kind == "suit", "jack must trigger the suit prompt"
+    assert eng.suit_pending()
+    eng.pass_turn(p0.id)
+    assert eng.prompt is not None and eng.prompt.kind == "suit", "ending the turn on a jack must trigger the suit prompt"
     print("jack always playable regardless of top: OK")
 
 
@@ -682,6 +687,76 @@ def test_leaver_does_not_block_continue():
     print("leaver does not block continue: OK")
 
 
+def test_jacks_can_be_added_one_by_one_before_naming_suit():
+    eng, players = make_engine(2)
+    p0, p1 = players
+    eng.table = [Card(9, "clubs")]
+    eng.turn_index = 0
+    p0.hand = [Card(11, "hearts"), Card(11, "spades"), Card(10, "diamonds")]
+    p1.hand = [Card(10, "spades")]
+    eng.deck = [Card(7, "hearts")]
+    eng.round_active = True
+
+    eng.play_cards(p0.id, [Card(11, "hearts")])
+    assert eng.prompt is None and eng.current_player() is p0
+    assert eng.leadable_cards(p0.hand) == [Card(11, "spades")], "only more jacks may follow"
+    assert not eng.can_draw(), "no drawing after playing a jack"
+    try:
+        eng.play_cards(p0.id, [Card(10, "diamonds")])
+        raise AssertionError("a non-jack must not follow the jack")
+    except GameError:
+        pass
+    eng.play_cards(p0.id, [Card(11, "spades")])
+    assert eng.prompt is None
+    eng.pass_turn(p0.id)
+    assert eng.prompt.kind == "suit" and eng.prompt.data["count"] == 2, eng.prompt
+    eng.declare_suit(p0.id, "diamonds")
+    assert eng.current_player() is p1 and eng.declared_suit == "diamonds"
+    print("jacks one by one before naming suit: OK")
+
+
+def test_eight_then_jack_two_players_still_asks_suit():
+    """In a 2-player game an 8 hands the turn back anyway, but once a jack
+    is on top the suit must be named before anything else happens."""
+    eng, players = make_engine(2)
+    p0, p1 = players
+    eng.table = [Card(8, "clubs")]
+    eng.turn_index = 0
+    p0.hand = [Card(8, "hearts"), Card(11, "hearts"), Card(13, "hearts")]
+    p1.hand = [Card(10, "spades")]
+    eng.deck = [Card(7, "spades"), Card(7, "diamonds"), Card(6, "clubs")]
+    eng.round_active = True
+    eng.play_cards(p0.id, [Card(8, "hearts")])
+    eng.play_cards(p0.id, [Card(11, "hearts")])
+    assert not eng.can_draw()
+    try:
+        eng.play_cards(p0.id, [Card(13, "hearts")])
+        raise AssertionError("no fresh lead before the jack's suit is named")
+    except GameError:
+        pass
+    eng.pass_turn(p0.id)
+    assert eng.prompt.kind == "suit" and eng.prompt.data["count"] == 1
+    eng.declare_suit(p0.id, "hearts")
+    assert len(p1.hand) == 3, "the 8's penalty still lands on p1"
+    print("eight then jack in two-player game: OK")
+
+
+def test_last_card_jack_asks_suit_immediately():
+    eng, players = make_engine(2)
+    p0, p1 = players
+    eng.table = [Card(9, "clubs")]
+    eng.turn_index = 0
+    p0.hand = [Card(11, "hearts")]
+    p1.hand = [Card(10, "spades")]
+    eng.deck = []
+    eng.round_active = True
+    eng.play_cards(p0.id, [Card(11, "hearts")])
+    assert eng.prompt is not None and eng.prompt.kind == "suit", "empty hand: nothing to add, ask right away"
+    eng.declare_suit(p0.id, "spades")
+    assert eng.prompt.kind == "jack_end" and eng.prompt.data["count"] == 1
+    print("last-card jack asks suit immediately: OK")
+
+
 if __name__ == "__main__":
     test_basic_flow()
     test_seven_forces_draw()
@@ -712,6 +787,9 @@ if __name__ == "__main__":
     test_double_jack_ending()
     test_scoring_basic()
     test_lone_jack_worth_20()
+    test_jacks_can_be_added_one_by_one_before_naming_suit()
+    test_eight_then_jack_two_players_still_asks_suit()
+    test_last_card_jack_asks_suit_immediately()
     test_round_end_waits_for_everyone_to_continue()
     test_leaver_does_not_block_continue()
     print("\nAll smoke tests passed.")

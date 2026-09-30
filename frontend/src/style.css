@@ -11,8 +11,11 @@
   --accent-2: #f4d97a;
   --danger: #e0574d;
   --success: #4fd07a;
-  --card-w: 64px;
-  --card-h: 92px;
+  /* hand-card size: grows with the viewport, table cards are a notch bigger.
+     --card-h is re-derived wherever --card-w is overridden, because a var()
+     inside a custom property resolves where it's declared, not where used */
+  --card-w: clamp(64px, 4vw + 36px, 92px);
+  --card-h: calc(var(--card-w) * 1.44);
   --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -221,8 +224,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 }
 
 .table-area {
+  --card-w: clamp(76px, 4.5vw + 44px, 108px);
+  --card-h: calc(var(--card-w) * 1.44);
   flex: 1;
-  min-height: 160px;
+  min-height: calc(var(--card-h) + 60px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,7 +317,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 /* fan-out hand card wrapper: rotates + lifts slightly for an arced hand;
    un-fans and pops toward the viewer on hover so the whole card is visible */
 .hand-card {
-  margin-left: -20px;
+  /* overlap about a quarter of a card, or more when needed so the whole
+     hand fits the row (percentages here are of the .hand width) */
+  margin-left: min(
+    calc(var(--card-w) * -0.25),
+    calc((100% - var(--card-w)) / max(var(--n, 1) - 1, 1) - var(--card-w))
+  );
   transform: rotate(var(--fan-rotate, 0)) translateY(var(--fan-lift, 0));
   transition: transform 0.28s var(--ease-smooth), z-index 0s;
   touch-action: none;
@@ -340,7 +350,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   width: var(--card-w);
   height: var(--card-h);
   background: linear-gradient(160deg, #ffffff, #f2ede0);
-  border-radius: 8px;
+  border-radius: calc(var(--card-w) * 0.1);
   border: 1px solid rgba(0,0,0,0.15);
   box-shadow: 0 3px 6px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.6) inset;
   color: #1a1a1a;
@@ -363,7 +373,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   justify-content: center;
 }
 .card-back-emblem {
-  font-size: 1.7rem;
+  font-size: calc(var(--card-w) * 0.4);
   color: rgba(255, 255, 255, 0.18);
   text-shadow: 0 0 10px rgba(255,255,255,0.15);
 }
@@ -382,11 +392,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   align-items: center;
   line-height: 1;
 }
-.card .corner.top { top: 5px; left: 5px; }
-.card .corner.bottom { bottom: 5px; right: 5px; transform: rotate(180deg); }
-.card .corner-rank { font-size: 0.78rem; }
-.card .corner-suit { font-size: 0.68rem; }
-.card .pip { font-size: 1.7rem; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.15)); }
+.card .corner.top { top: 6%; left: 7%; }
+.card .corner.bottom { bottom: 6%; right: 7%; transform: rotate(180deg); }
+.card .corner-rank { font-size: calc(var(--card-w) * 0.2); }
+.card .corner-suit { font-size: calc(var(--card-w) * 0.18); }
+.card .pip { font-size: calc(var(--card-w) * 0.44); filter: drop-shadow(0 1px 1px rgba(0,0,0,0.15)); }
 
 .hand-actions { display: flex; gap: 8px; margin-top: 4px; }
 
@@ -445,6 +455,17 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 }
 .modal-actions { display: flex; gap: 10px; margin-top: 14px; justify-content: center; }
 .modal-actions.column { flex-direction: column; }
+/* non-blocking variant: no dim/blur, so the hand behind stays readable */
+.modal-backdrop.clear {
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+  /* sit near the top (over header / scoreboard) so the hand at the bottom
+     of the screen stays uncovered */
+  align-items: flex-start;
+  padding-top: max(12px, 6vh);
+}
+.modal-backdrop.clear .modal { pointer-events: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(230,189,77,0.35); }
 .suit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
 .suit-btn {
   font-size: 1.6rem;
@@ -455,6 +476,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   box-shadow: 0 3px 6px rgba(0,0,0,0.3);
 }
 .suit-btn.red { color: #c0392b; }
+.suit-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1; }
+.suit-btn .suit-count { font-size: 0.7rem; font-family: inherit; color: #6b6b6b; font-weight: 600; }
+.suit-btn.best { box-shadow: 0 3px 6px rgba(0,0,0,0.3), 0 0 0 3px var(--accent); }
+.suit-hint { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
 
 /* ---- Round summary ---- */
 .modal.round-summary {
@@ -538,7 +563,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 }
 
 @media (max-width: 480px) {
-  :root { --card-w: 48px; --card-h: 70px; }
-  .table-area { gap: 20px; }
+  :root { --card-w: 58px; }
+  .table-area { --card-w: 72px; gap: 28px; }
   .hand-card:hover { transform: translateY(-20px) scale(1.1); }
 }

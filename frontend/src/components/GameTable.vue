@@ -82,6 +82,7 @@ function fanStyle(i, total) {
   const rotate = offset * angleStep;
   const lift = Math.min(Math.abs(offset) * 2.4, 16);
   return {
+    "--n": total,
     "--fan-rotate": `${rotate}deg`,
     "--fan-lift": `${lift}px`,
     zIndex: i,
@@ -251,6 +252,7 @@ function snapBack(originRect) {
         <span v-if="game.awaiting_continue">Раздача завершена — ждём, пока все нажмут «Продолжить»</span>
         <span v-else-if="prompt">Ожидаем решение игрока {{ promptOwnerName }}…</span>
         <span v-else-if="isMyTurn && mustCoverSix">Нужно накрыть шестёрку — тяните карты, пока не найдётся подходящая</span>
+        <span v-else-if="isMyTurn && game.suit_pending">Можно доложить ещё валетов — масть выберете, когда закончите ход</span>
         <span v-else-if="isMyTurn && game.has_played_this_turn">Можно доложить ещё карт того же номинала или закончить ход</span>
         <span v-else-if="isMyTurn">Ваш ход</span>
         <span v-else>

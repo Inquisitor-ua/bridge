@@ -54,6 +54,9 @@ class Engine:
         self.round_active: bool = False
         self.drawn_this_turn: bool = False
         self.played_this_turn: bool = False
+        # jacks laid in a row at the end of the current turn whose suit hasn't
+        # been named yet -- the suit is asked for when the turn is ended
+        self.jack_run: int = 0
         self.log: list[str] = []
         self.prompt: Prompt | None = None
         self.game_over: bool = False
@@ -143,6 +146,12 @@ class Engine:
         top = self.top_card()
         return self.played_this_turn and top is not None and top.rank != 6
 
+    def suit_pending(self) -> bool:
+        """The current player has jacks on top of the table this turn and
+        still owes the suit; they may keep adding jacks, and the suit prompt
+        opens once they end the turn."""
+        return self.jack_run > 0
+
     def _turn_returns_to_current(self) -> bool:
         """True if ending the turn right now would, after all pending skips
         (from 8s / Aces) are consumed, hand play straight back to the current
@@ -151,6 +160,8 @@ class Engine:
         turn" first; the lead implicitly ends the turn and applies penalties."""
         if not self.played_this_turn or self.pending_skip <= 0:
             return False
+        if self.suit_pending():
+            return False  # the suit must be named first; that ends the turn explicitly
         # mirror _begin_turn: each opponent reached uses up one skip, the
         # current player (the skips' source) is passed over for free
         skips = self.pending_skip
@@ -258,6 +269,7 @@ class Engine:
         self.deck = build_deck()
         self.table = []
         self.declared_suit = None
+        self.jack_run = 0
         self.pending_draw = 0
         self.pending_skip = 0
         self.skip_source = None
@@ -380,6 +392,7 @@ class Engine:
         # the draw allowance; it never lets a turn become "fresh" anyway)
         self.drawn_this_turn = False
         self.played_this_turn = False
+        self.jack_run = 0
         self.round_turns += 1
         self._stat(player, "turns")
 
@@ -464,6 +477,9 @@ class Engine:
             if self._turn_returns_to_current():
                 raise GameError("ход всё равно возвращается к вам — сначала возьмите карту или сходите")
             raise GameError("сначала нужно взять карту из колоды или сходить")
+        if self.suit_pending():
+            self.prompt = Prompt(kind="suit", player_id=player.id, data={"count": self.jack_run})
+            return
         self._say(f"{player.name} пропускает ход.")
         self._advance_turn()
         self._begin_turn()
@@ -530,9 +546,15 @@ class Engine:
             self._stat(player, "sixes_played", len(cards))
 
         if rank == 11:
-            self.prompt = Prompt(kind="suit", player_id=player.id, data={"count": len(cards)})
+            # the turn stays open so more jacks can follow; the suit is named
+            # when the turn is ended (right away if the hand is now empty)
+            self.declared_suit = None
+            self.jack_run += len(cards)
+            if not player.hand:
+                self.prompt = Prompt(kind="suit", player_id=player.id, data={"count": self.jack_run})
             return
 
+        self.jack_run = 0
         self.declared_suit = None
         draw_before, skip_before = self.pending_draw, self.pending_skip
         self._apply_play_effects(cards)
@@ -569,6 +591,7 @@ class Engine:
         is_opening = self.prompt.data.get("opening", False)
         self.declared_suit = suit
         self.prompt = None
+        self.jack_run = 0
         self._say(f"{declarer.name} назначает масть {SUIT_SYMBOLS[suit]}.")
 
         if is_opening:
@@ -854,4 +877,5 @@ class Engine:
             "can_draw": self.can_draw(),
             "can_pass": self.can_pass(),
             "has_played_this_turn": self.played_this_turn,
+            "suit_pending": self.suit_pending(),
         }
