@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { state, continueRound } from "../store.js";
+import { state, continueRound, leaveRoom } from "../store.js";
 
 const props = defineProps({
   summary: { type: Object, required: true },
@@ -94,6 +94,12 @@ const readyIds = computed(() => new Set(game.value.ready_ids || []));
 const iAmIn = computed(() => alivePlayers.value.some((p) => p.id === state.playerId));
 const iAmReady = computed(() => readyIds.value.has(state.playerId));
 const waiting = computed(() => !!game.value.awaiting_continue);
+
+// back to the lobby; mid-game that forfeits, so ask first (as the header's "Выйти" does)
+function goHome() {
+  if (iAmIn.value && !game.value.game_over && !confirm("Выйти из игры? Вы выбудете из текущей партии.")) return;
+  leaveRoom();
+}
 </script>
 
 <template>
@@ -186,15 +192,19 @@ const waiting = computed(() => !!game.value.awaiting_continue);
               <span class="rs-ready-mark">{{ readyIds.has(p.id) ? "✓" : "" }}</span>{{ p.name }}
             </span>
           </div>
-          <button v-if="iAmIn" class="primary rs-continue" :disabled="iAmReady" @click="continueRound">
-            {{ iAmReady ? "Ждём остальных…" : "Продолжить" }}
-          </button>
-          <template v-else>
-            <p class="rs-note">Вы выбыли — следующая раздача начнётся без вас.</p>
-            <button class="ghost" @click="emit('close')">Закрыть</button>
-          </template>
+          <p v-if="!iAmIn" class="rs-note">Вы выбыли — следующая раздача начнётся без вас.</p>
+          <div class="rs-actions">
+            <button v-if="iAmIn" class="primary rs-continue" :disabled="iAmReady" @click="continueRound">
+              {{ iAmReady ? "Ждём остальных…" : "Продолжить" }}
+            </button>
+            <button v-else class="ghost" @click="emit('close')">Закрыть</button>
+            <button class="ghost" @click="goHome">Домой</button>
+          </div>
         </template>
-        <button v-else class="primary rs-continue" @click="emit('close')">К итогам игры</button>
+        <div v-else class="rs-actions">
+          <button class="primary rs-continue" @click="emit('close')">К итогам игры</button>
+          <button class="ghost" @click="goHome">Домой</button>
+        </div>
       </div>
     </div>
   </div>

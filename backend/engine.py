@@ -163,6 +163,10 @@ class Engine:
         turn" first; the lead implicitly ends the turn and applies penalties."""
         if not self.played_this_turn or self.pending_skip <= 0:
             return False
+        if not self.round_active or len(self.alive_players()) < 2:
+            # nobody left to skip (e.g. the only opponent quit right after an
+            # 8): the walk below would circle on the current player forever
+            return False
         if self.suit_pending():
             return False  # the suit must be named first; that ends the turn explicitly
         # mirror _begin_turn: each opponent reached uses up one skip, the

@@ -84,8 +84,18 @@ function handleMessage(msg) {
   } else if (msg.type === "emote") {
     showEmote(msg.player_id, msg.emoji);
   } else if (msg.type === "error") {
-    state.error = msg.message;
+    showError(msg.message);
   }
+}
+
+// the error banner hides itself; a repeated error restarts the wait
+const ERROR_SHOW_MS = 4000;
+let errorTimer = null;
+
+function showError(message) {
+  state.error = message;
+  clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => (state.error = null), ERROR_SHOW_MS);
 }
 
 export function connect() {

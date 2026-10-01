@@ -1703,6 +1703,7 @@ button.ghost:hover:not(:disabled) {
 }
 .rs-ready-pill.ready { color: var(--success); border-color: rgba(143, 191, 159, 0.3); background: var(--success-soft); }
 .rs-ready-pill.ready .rs-ready-mark { border: none; background: var(--success); color: var(--bg); font-weight: 700; }
+.rs-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .rs-continue { min-width: 220px; }
 .rs-note { margin: 0; color: var(--muted); font-size: 0.88rem; }
 
