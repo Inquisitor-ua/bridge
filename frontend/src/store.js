@@ -150,6 +150,10 @@ export function continueRound() {
   send({ type: "continue_round" });
 }
 
+export function voteRematch() {
+  send({ type: "rematch" });
+}
+
 export function leaveRoom() {
   // tell the server first so the player is removed from the room (lobby) or
   // forfeits (running game); the socket itself stays open for the lobby

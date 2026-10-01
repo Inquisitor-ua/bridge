@@ -8,7 +8,7 @@ import { declareBridge } from "../store.js";
       <div class="modal-emblem">
         <span>♠</span><span class="red">♥</span><span class="red">♦</span><span>♣</span>
       </div>
-      <p class="overline">Четыре карты одного номинала</p>
+      <p class="overline">Четыре одинаковые карты от десятки до туза</p>
       <h3>Объявить «Бридж»?</h3>
       <p class="modal-text">Раздача завершится немедленно, и все игроки посчитают очки на руках.</p>
       <div class="modal-actions column">

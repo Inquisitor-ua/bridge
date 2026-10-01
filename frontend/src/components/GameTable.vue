@@ -1,12 +1,13 @@
 <script setup>
 import { ref, reactive, computed, watch } from "vue";
-import { state, playCards, drawCard, passTurn, leaveRoom } from "../store.js";
+import { state, playCards, drawCard, passTurn, leaveRoom, voteRematch } from "../store.js";
 import PlayingCard from "./PlayingCard.vue";
 import Scoreboard from "./Scoreboard.vue";
 import PromptSuit from "./PromptSuit.vue";
 import PromptBridge from "./PromptBridge.vue";
 import PromptJackEnd from "./PromptJackEnd.vue";
 import RoundSummary from "./RoundSummary.vue";
+import CardFlight from "./CardFlight.vue";
 
 const game = computed(() => state.game || {});
 const myHand = computed(() => game.value.your_hand || []);
@@ -31,6 +32,21 @@ const roundSummary = computed(() => {
   if (!s || dismissedSummary.value === s.number) return null;
   return game.value.awaiting_continue || game.value.game_over ? s : null;
 });
+
+// a rematch restarts round numbering, so forget which summary was closed
+watch(
+  () => game.value.game_over,
+  (over) => {
+    if (!over) dismissedSummary.value = null;
+  }
+);
+
+// ---- "new game" vote on the final standings screen ----
+const rematchIds = computed(() => game.value.rematch_ids || []);
+const rematchPlayerIds = computed(() => game.value.rematch_player_ids || []);
+const iVotedRematch = computed(() => rematchIds.value.includes(state.playerId));
+const rematchPossible = computed(() => rematchPlayerIds.value.length >= 2);
+const rematchReady = computed(() => rematchPlayerIds.value.filter((id) => rematchIds.value.includes(id)).length);
 
 const selected = ref([]); // array of {rank, suit}
 
@@ -102,6 +118,136 @@ watch(
         clearTimeout(deckPulseTimer);
         deckPulseTimer = setTimeout(() => (deckPulse.value = false), 340);
       });
+    }
+  }
+);
+
+// ---- opponents' cards flying between the table and their mini hands ----
+const deckEl = ref(null);
+const discardEl = ref(null);
+const flights = ref([]);
+const incoming = reactive({}); // player id -> cards still flying into that hand
+let flightSeq = 0;
+
+// while an opponent's card is in the air the table keeps showing the previous
+// top card; the new one replaces it the moment the flying card lands
+const heldTop = ref(undefined); // undefined = not holding
+let holdCount = 0;
+const tableEnter = ref("table-card");
+const shownTop = computed(() => (heldTop.value !== undefined ? heldTop.value : game.value.table_top));
+
+const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+function rectOf(el) {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width };
+}
+
+function miniHandEl(playerId) {
+  return document.querySelector(`.mini-hand[data-hand-for="${playerId}"]`);
+}
+
+// rect of the i-th card slot after the last back currently shown in a mini
+// hand (i = 0 is the next free slot, i = -1 the last occupied one)
+function miniSlot(handEl, i) {
+  const backs = handEl.querySelectorAll(".mini-back");
+  const n = backs.length;
+  if (n === 0) {
+    const r = handEl.getBoundingClientRect();
+    const width = r.height / 1.4;
+    return { left: r.left + Math.max(i, 0) * width * 0.45, top: r.top, width };
+  }
+  const last = rectOf(backs[n - 1]);
+  const step = n > 1 ? last.left - backs[n - 2].getBoundingClientRect().left : last.width * 0.45;
+  return { left: last.left + (i + 1) * step, top: last.top, width: last.width };
+}
+
+function sameCardOrNull(a, b) {
+  return (!a && !b) || (a && b && sameCard(a, b));
+}
+
+function releaseTop() {
+  if (holdCount === 0 || --holdCount > 0) return;
+  tableEnter.value = "table-card-land";
+  heldTop.value = undefined;
+  setTimeout(() => (tableEnter.value = "table-card"), 50);
+}
+
+function finishFlight(f) {
+  flights.value = flights.value.filter((x) => x.id !== f.id);
+  f.onDone?.();
+}
+
+function landIncoming(playerId, n) {
+  incoming[playerId] = (incoming[playerId] || 0) - n;
+  if (incoming[playerId] <= 0) delete incoming[playerId];
+}
+
+function flyDraw(playerId, n) {
+  const deckCard = deckEl.value?.querySelector(".card");
+  const hand = miniHandEl(playerId);
+  if (!deckCard || !hand) return;
+  const from = rectOf(deckCard);
+  const count = Math.min(n, 6);
+  incoming[playerId] = (incoming[playerId] || 0) + n;
+  for (let i = 0; i < count; i++) {
+    const last = i === count - 1;
+    flights.value.push({
+      id: ++flightSeq,
+      card: null,
+      from,
+      to: miniSlot(hand, i),
+      width: from.width,
+      delay: i * 110,
+      onDone: () => landIncoming(playerId, last ? n - (count - 1) : 1),
+    });
+  }
+}
+
+function flyPlay(playerId, n, newTop, oldTop) {
+  const hand = miniHandEl(playerId);
+  const pile = discardEl.value;
+  if (!hand || !pile) return;
+  const to = rectOf(pile);
+  const topChanged = !sameCardOrNull(newTop, oldTop);
+  if (topChanged && holdCount++ === 0) heldTop.value = oldTop || null;
+  const count = Math.min(n, 4);
+  for (let i = 0; i < count; i++) {
+    const last = i === count - 1;
+    flights.value.push({
+      id: ++flightSeq,
+      // only the top card is known; the ones under it travel face down
+      card: last && topChanged ? newTop : null,
+      from: miniSlot(hand, -1 - i),
+      to,
+      width: to.width,
+      delay: i * 110,
+      onDone: last && topChanged ? releaseTop : null,
+    });
+  }
+}
+
+function resetFlights() {
+  flights.value = [];
+  for (const k of Object.keys(incoming)) delete incoming[k];
+  holdCount = 0;
+  heldTop.value = undefined;
+}
+
+watch(
+  () => state.game,
+  (nv, ov) => {
+    if (!nv || !ov || nv.round_number !== ov.round_number || !ov.round_active) {
+      resetFlights();
+      return;
+    }
+    if (reduceMotion) return;
+    const before = new Map((ov.players || []).map((p) => [p.id, p.hand_count]));
+    for (const p of nv.players || []) {
+      if (p.id === state.playerId || !before.has(p.id)) continue;
+      const delta = p.hand_count - before.get(p.id);
+      if (delta > 0) flyDraw(p.id, delta);
+      else if (delta < 0) flyPlay(p.id, -delta, nv.table_top, ov.table_top);
     }
   }
 );
@@ -235,7 +381,7 @@ function snapBack(originRect) {
 
 <template>
   <div class="game-table">
-    <Scoreboard />
+    <Scoreboard :incoming="incoming" />
 
     <div v-if="game.game_over" class="standings">
       <p class="overline">Партия завершена</p>
@@ -247,12 +393,24 @@ function snapBack(originRect) {
             {{ s.name }}
             <span v-if="s.id === state.playerId" class="you">вы</span>
           </span>
+          <span v-if="rematchIds.includes(s.id)" class="tag success">готов</span>
+          <span v-else-if="game.rematch_player_ids && !rematchPlayerIds.includes(s.id)" class="tag">ушёл</span>
           <span v-if="s.eliminated" class="tag danger">выбыл</span>
           <span v-else-if="i === 0" class="tag gold">победитель</span>
           <span class="standings-score">{{ s.score }}</span>
         </li>
       </ol>
-      <button class="primary" @click="leaveRoom">Вернуться в лобби</button>
+      <div class="standings-actions">
+        <button class="primary" :disabled="!rematchPossible || iVotedRematch" @click="voteRematch">
+          {{ iVotedRematch ? "Вы готовы" : "Новая игра" }}
+        </button>
+        <button class="ghost" @click="leaveRoom">Вернуться в лобби</button>
+      </div>
+      <p class="standings-hint">
+        <template v-if="!rematchPossible">Для новой игры в комнате не хватает игроков</template>
+        <template v-else-if="iVotedRematch">Готовы {{ rematchReady }} из {{ rematchPlayerIds.length }} — ждём остальных</template>
+        <template v-else>Новая игра начнётся, когда «Новая игра» нажмут все, кто в комнате</template>
+      </p>
     </div>
 
     <template v-else>
@@ -277,6 +435,7 @@ function snapBack(originRect) {
       >
         <div class="pile">
           <div
+            ref="deckEl"
             class="deck-pile"
             :class="{ drawable: canAct && game.can_draw }"
             :title="`В колоде: ${game.deck_count}`"
@@ -291,10 +450,10 @@ function snapBack(originRect) {
         </div>
 
         <div class="pile">
-          <div class="discard-pile">
-            <div v-if="!game.table_top" class="card-slot"></div>
-            <Transition name="table-card">
-              <PlayingCard v-if="game.table_top" :card="game.table_top" :key="cardKey(game.table_top)" />
+          <div ref="discardEl" class="discard-pile">
+            <div v-if="!shownTop" class="card-slot"></div>
+            <Transition :name="tableEnter">
+              <PlayingCard v-if="shownTop" :card="shownTop" :key="cardKey(shownTop)" />
             </Transition>
           </div>
           <span class="pile-label">
@@ -359,6 +518,19 @@ function snapBack(originRect) {
     <PromptBridge v-if="myPrompt && myPrompt.kind === 'bridge'" />
     <PromptJackEnd v-if="myPrompt && myPrompt.kind === 'jack_end'" :count="myPrompt.data.count" />
     <RoundSummary v-if="roundSummary" :summary="roundSummary" @close="dismissedSummary = roundSummary.number" />
+
+    <div class="flight-layer">
+      <CardFlight
+        v-for="f in flights"
+        :key="f.id"
+        :card="f.card"
+        :from="f.from"
+        :to="f.to"
+        :width="f.width"
+        :delay="f.delay"
+        @done="finishFlight(f)"
+      />
+    </div>
 
     <div
       v-if="drag.active"

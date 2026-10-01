@@ -28,6 +28,9 @@ class Room:
     sockets: dict[str, WebSocket] = field(default_factory=dict)
     engine: Engine | None = None
     left: set[str] = field(default_factory=set)  # players who quit a started game
+    # after game over: players who pressed "new game"; the rematch starts once
+    # everyone still in the room has voted
+    rematch_ids: set[str] = field(default_factory=set)
 
     def player(self, pid: str) -> Player | None:
         for p in self.players:
@@ -54,6 +57,34 @@ class Room:
         self.engine = Engine(list(self.players))
         self.engine.start_round()
 
+    def present_players(self) -> list[Player]:
+        return [p for p in self.players if p.id not in self.left]
+
+    def vote_rematch(self, pid: str) -> None:
+        if self.engine is None or not self.engine.game_over:
+            raise GameError("игра ещё не закончена")
+        if self.player(pid) is None or pid in self.left:
+            raise GameError("вы не в комнате")
+        self.rematch_ids.add(pid)
+        self._maybe_start_rematch()
+
+    def _maybe_start_rematch(self) -> None:
+        if self.engine is None or not self.engine.game_over:
+            return
+        present = self.present_players()
+        if len(present) < MIN_PLAYERS or not {p.id for p in present} <= self.rematch_ids:
+            return
+        # fresh game with whoever is still here; players who quit are dropped
+        for p in present:
+            p.hand = []
+            p.score = 0
+            p.eliminated = False
+        self.players = present
+        self.left = set()
+        self.rematch_ids = set()
+        self.engine = Engine(list(self.players))
+        self.engine.start_round()
+
     def leave(self, pid: str) -> None:
         self.sockets.pop(pid, None)
         if self.engine is None:
@@ -64,6 +95,9 @@ class Room:
         if pid == self.host_id:
             remaining = [p for p in self.players if p.id not in self.left]
             self.host_id = remaining[0].id if remaining else ""
+        # the one who left may have been the last vote holding the rematch up
+        self.rematch_ids.discard(pid)
+        self._maybe_start_rematch()
 
     @property
     def is_empty(self) -> bool:
@@ -79,6 +113,9 @@ class Room:
         if self.engine is not None:
             base.update(self.engine.state_for(viewer_id))
             base["log"] = self.engine.log[-30:]
+            if self.engine.game_over:
+                base["rematch_ids"] = sorted(self.rematch_ids)
+                base["rematch_player_ids"] = [p.id for p in self.present_players()]
         return base
 
 

@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from .cards import Card, build_deck, hand_score, RANK_NAMES, SUIT_SYMBOLS
 
 MAX_SCORE = 125
+# "Bridge" can only be called on four in a row of one of these ranks (10..A);
+# four sixes, sevens, eights or nines don't count
+BRIDGE_RANKS = frozenset({10, 11, 12, 13, 14})
 
 
 @dataclass
@@ -721,7 +724,7 @@ class Engine:
             return False
         last4 = self.table[-4:]
         ranks = {c.rank for c in last4}
-        return len(ranks) == 1
+        return len(ranks) == 1 and next(iter(ranks)) in BRIDGE_RANKS
 
     # ---------- round end / scoring ----------
 

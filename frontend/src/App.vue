@@ -1,12 +1,14 @@
 <script setup>
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import { state, leaveRoom } from "./store.js";
 import Lobby from "./components/Lobby.vue";
 import WaitingRoom from "./components/WaitingRoom.vue";
 import GameTable from "./components/GameTable.vue";
+import RulesModal from "./components/RulesModal.vue";
 
 const inRoom = computed(() => !!state.room && !!state.playerId);
 const started = computed(() => inRoom.value && state.game && state.game.started);
+const rulesOpen = ref(false);
 
 function onLeave() {
   const inProgress = started.value && !state.game.game_over;
@@ -32,6 +34,9 @@ function onLeave() {
           <span class="conn-dot"></span>
           <span class="conn-label">{{ state.connected ? "online" : "offline" }}</span>
         </span>
+        <button class="ghost small rules-btn" title="Правила игры" @click="rulesOpen = true">
+          <span class="rules-btn-q">?</span><span class="rules-btn-label">Правила</span>
+        </button>
         <button v-if="inRoom" class="ghost small" @click="onLeave">Выйти</button>
       </div>
     </header>
@@ -45,5 +50,7 @@ function onLeave() {
       <GameTable v-else-if="started" key="game" />
       <WaitingRoom v-else key="waiting" />
     </Transition>
+
+    <RulesModal v-if="rulesOpen" @close="rulesOpen = false" />
   </div>
 </template>

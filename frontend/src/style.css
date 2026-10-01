@@ -573,29 +573,29 @@ button.ghost:hover:not(:disabled) {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 14px 7px 7px;
+  gap: 12px;
+  padding: 9px 18px 9px 9px;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--line);
   transition: border-color 0.3s, background 0.3s, opacity 0.3s;
 }
-.player-chip .avatar { width: 32px; height: 32px; font-size: 0.95rem; }
+.player-chip .avatar { width: 42px; height: 42px; font-size: 1.15rem; }
 .player-chip .avatar::after {
   content: "";
   position: absolute;
   right: -1px;
   bottom: -1px;
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--success);
   border: 2px solid var(--bg);
 }
 .player-chip .avatar.off::after { background: var(--danger); }
 .player-info { display: flex; flex-direction: column; line-height: 1.2; }
-.player-chip .name { font-size: 0.85rem; font-weight: 600; color: var(--ink); white-space: nowrap; }
-.player-chip .meta { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.player-chip .name { font-size: 0.98rem; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.player-chip .meta { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .player-chip .meta-sep { margin: 0 5px; color: var(--faint); }
 .player-chip .meta-score { color: var(--ink-2); font-weight: 600; }
 
@@ -610,10 +610,64 @@ button.ghost:hover:not(:disabled) {
 }
 .player-chip.eliminated { opacity: 0.4; }
 
+/* opponent's hand: a small fan of card backs, one per card */
+.mini-hand {
+  --mw: 18px;
+  display: flex;
+  align-items: center;
+  height: calc(var(--mw) * 1.4);
+  min-width: var(--mw);
+  margin-left: 2px;
+  padding-right: 2px;
+}
+.mini-back {
+  flex: none;
+  width: var(--mw);
+  height: calc(var(--mw) * 1.4);
+  border-radius: 3px;
+  border: 1px solid rgba(200, 169, 106, 0.5);
+  background:
+    repeating-linear-gradient(45deg, rgba(200, 169, 106, 0.16) 0 1px, transparent 1px 4px),
+    linear-gradient(160deg, #1b4337, #0c1f1a);
+  box-shadow: -1px 0 2px rgba(0, 0, 0, 0.45);
+  transform: rotate(calc((var(--i) - (var(--n) - 1) / 2) * 3deg));
+  animation: miniBackIn 0.22s var(--ease-pop);
+}
+.mini-back + .mini-back { margin-left: calc(var(--mw) * -0.55); }
+@keyframes miniBackIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.8); }
+}
+
+/* cards flying between the table and an opponent's mini hand */
+.flight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+  overflow: hidden;
+}
+.card-flight {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
 /* =====================================================================
    Game table
    ===================================================================== */
 .game-table { display: flex; flex-direction: column; flex: 1; gap: 14px; }
+
+/* table, log and hand are a play surface, not text: no selection highlight
+   or iOS long-press callout while dragging / tapping cards */
+.table-area,
+.log-panel,
+.hand-panel {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 
 .turn-banner {
   align-self: center;
@@ -1071,6 +1125,9 @@ button.ghost:hover:not(:disabled) {
 .standings-list li.winner .standings-place { color: var(--gold); }
 .standings-name { flex: 1; font-weight: 600; }
 .standings-score { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-2); min-width: 3ch; text-align: right; }
+.standings-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.standings-actions button { flex: 1 1 160px; }
+.standings-hint { margin: 14px 0 0; font-size: 0.8rem; color: var(--muted); }
 
 /* =====================================================================
    Modals
@@ -1185,6 +1242,93 @@ button.ghost:hover:not(:disabled) {
 .suit-count { font-size: 0.66rem; font-weight: 600; color: #7b766b; letter-spacing: 0.02em; }
 .suit-btn.best { box-shadow: 0 0 0 2px var(--gold), 0 8px 20px -6px rgba(200, 169, 106, 0.5); }
 .suit-hint { margin: 14px 0 0; font-size: 0.76rem; color: var(--muted); }
+
+/* =====================================================================
+   Rules
+   ===================================================================== */
+.rules-btn { gap: 7px; }
+.rules-btn-q {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gold-2);
+  border: 1px solid var(--gold-line);
+}
+
+/* above the in-game prompts, so the rules can be opened at any moment */
+.rules-backdrop { z-index: 300; }
+.modal.rules-modal {
+  position: relative;
+  width: min(100%, 620px);
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: left;
+  padding: 30px 30px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.rules-modal h3 { margin-bottom: 4px; }
+.rules-modal p,
+.rules-modal li { color: var(--ink-2); font-size: 0.88rem; line-height: 1.55; }
+.rules-modal p { margin: 0; }
+.rules-modal b { color: var(--gold-2); }
+.rules-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+.rules-close:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
+.rules-section {
+  margin: 22px 0 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.rules-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rules-card-row {
+  display: grid;
+  grid-template-columns: 76px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.rules-card-pics { display: flex; justify-content: center; }
+.rules-card-pic { --card-w: 34px; --card-h: calc(var(--card-w) * 1.4); flex: none; }
+.rules-card-pic + .rules-card-pic { margin-left: -24px; }
+.rules-card-pic .card { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 3px 8px -3px rgba(0, 0, 0, 0.6); }
+.rules-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rules-modal .rules-card-name { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+.rules-modal .rules-card-text { font-size: 0.8rem; line-height: 1.45; color: var(--muted); }
+.rules-card-points {
+  max-width: 110px;
+  text-align: right;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+}
+.rules-modal .rules-note { margin-top: 10px; font-size: 0.78rem; color: var(--muted); }
+.rules-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.rules-list li::marker { color: var(--gold); }
+.rules-ok { margin-top: 24px; }
 
 /* =====================================================================
    Round summary
@@ -1373,9 +1517,18 @@ button.ghost:hover:not(:disabled) {
   .app-header { margin-bottom: 10px; padding-bottom: 10px; }
   .conn-label, .room-code-label { display: none; }
   .brand-name { font-size: 1.35rem; }
-  .player-chip { padding: 5px 10px 5px 5px; gap: 8px; }
-  .player-chip .avatar { width: 26px; height: 26px; font-size: 0.8rem; }
-  .player-chip .name { font-size: 0.78rem; }
+  .player-chip { padding: 6px 12px 6px 6px; gap: 9px; }
+  .player-chip .avatar { width: 34px; height: 34px; font-size: 0.95rem; }
+  .player-chip .name { font-size: 0.86rem; }
+  .player-chip .meta { font-size: 0.74rem; }
+  .mini-hand { --mw: 14px; }
+  .rules-btn { width: 32px; padding: 0; }
+  .rules-btn-label { display: none; }
+  .modal.rules-modal { padding: 24px 18px 20px; }
+  .rules-card-row { grid-template-columns: 52px 1fr; gap: 10px; }
+  .rules-card-pic { --card-w: 30px; }
+  .rules-card-pic + .rules-card-pic { margin-left: -23px; }
+  .rules-card-points { grid-column: 2; max-width: none; text-align: left; }
   .table-area { border-radius: 36px; }
   .turn-banner { border-radius: 14px; font-size: 0.8rem; padding: 7px 14px; }
   .hand-actions button { height: 40px; padding: 0 14px; font-size: 0.84rem; }

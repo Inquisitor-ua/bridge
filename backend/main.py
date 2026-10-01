@@ -23,7 +23,9 @@ manager = RoomManager()
 
 async def broadcast_room(room) -> None:
     stale = []
-    for pid, ws in room.sockets.items():
+    # snapshot: a socket may be added/removed by another connection while we
+    # await a send below
+    for pid, ws in list(room.sockets.items()):
         try:
             await ws.send_json({"type": "state", **room.public_state(pid)})
         except Exception:
@@ -122,6 +124,12 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     if room is None or player is None or room.engine is None:
                         raise GameError("игра ещё не началась")
                     room.engine.continue_round(player.id)
+                    await broadcast_room(room)
+
+                elif mtype == "rematch":
+                    if room is None or player is None:
+                        raise GameError("вы не в комнате")
+                    room.vote_rematch(player.id)
                     await broadcast_room(room)
 
                 elif mtype == "leave_room":
