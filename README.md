@@ -61,12 +61,20 @@ WebSocket `/ws`. Воркер строго один — комнаты и пар
 сеть `edge` (порты на хост не публикуются); маршрут для
 `bridge.yehor-inq.com` — в `../nginx-proxy/conf.d/bridge.conf`.
 
-На сервере (рядом с `nginx-proxy`, например `/srv/bridge`):
+Образ собирает GitHub Actions (`.github/workflows/docker.yml`) при каждом
+пуше в `main` и публикует в `ghcr.io/inquisitor-ua/bridge:latest` — сервер
+слабый, собирать фронтенд на нём долго. На сервере (рядом с `nginx-proxy`,
+например `/srv/bridge`), после того как workflow в Actions стал зелёным:
 
 ```
-cd /srv/bridge && docker compose up -d --build
+cd /srv/bridge && git pull && docker compose pull && docker compose up -d
 cd /srv/nginx-proxy && git pull && docker compose restart nginx
 ```
+
+Если пакет в GHCR приватный, один раз на сервере:
+`docker login ghcr.io -u Inquisitor-ua` (пароль — GitHub PAT с правом
+`read:packages`). Собрать образ прямо на месте по-прежнему можно через
+`docker compose up -d --build`.
 
 В Cloudflare: DNS-запись `bridge` (A на IP сервера, оранжевое облако);
 WebSocket в Cloudflare включён по умолчанию. Origin-сертификат
