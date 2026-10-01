@@ -181,9 +181,30 @@ function toggleSelect(card) {
   }
 }
 
+// cards I've just played, hidden from my hand until the server answers (a new
+// state or an error), so the play looks instant despite the round trip
+const PENDING_PLAY_MS = 2000;
+const pendingPlay = ref([]);
+let pendingPlayTimer = null;
+
+function clearPendingPlay() {
+  clearTimeout(pendingPlayTimer);
+  pendingPlay.value = [];
+}
+
+function submitPlay(cards) {
+  playCards(cards);
+  pendingPlay.value = [...cards];
+  clearTimeout(pendingPlayTimer);
+  pendingPlayTimer = setTimeout(clearPendingPlay, PENDING_PLAY_MS);
+}
+
+watch([() => state.game, () => state.error], clearPendingPlay);
+onUnmounted(clearPendingPlay);
+
 function commitSelection() {
   if (selected.value.length === 0) return;
-  playCards(selected.value);
+  submitPlay(selected.value);
   selected.value = [];
 }
 
@@ -507,7 +528,7 @@ const drag = reactive({
 });
 
 function isDragged(card) {
-  return drag.active && drag.cards.some((c) => sameCard(c, card));
+  return (drag.active && drag.cards.some((c) => sameCard(c, card))) || pendingPlay.value.some((c) => sameCard(c, card));
 }
 
 function isOverTable(x, y) {
@@ -562,7 +583,7 @@ function onCardPointerDown(ev, card) {
     }
 
     if (drag.overTable) {
-      playCards(drag.cards);
+      submitPlay(drag.cards);
       selected.value = [];
       flyToTable();
     } else {

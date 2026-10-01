@@ -1000,11 +1000,13 @@ button.ghost:hover:not(:disabled) {
 }
 .card.pulse { animation: deckPulse 0.34s var(--ease-smooth); }
 
-/* discard pile card enter/leave */
-.table-card-enter-active { transition: all 0.38s var(--ease-pop); }
-.table-card-enter-from { opacity: 0; transform: translateY(70px) scale(0.7) rotate(-8deg); }
-.table-card-leave-active { transition: opacity 0.12s linear; position: absolute; inset: 0; }
-.table-card-leave-to { opacity: 0; }
+/* discard pile card enter/leave; `.card` is in the selectors so they outrank
+   the base .card rule below (its own position and transition would otherwise
+   win and leave the old card in the flow, pushing the new one under it) */
+.card.table-card-enter-active { transition: all 0.38s var(--ease-pop); }
+.card.table-card-enter-from { opacity: 0; transform: translateY(70px) scale(0.7) rotate(-8deg); }
+.card.table-card-leave-active { transition: opacity 0.12s linear; position: absolute; inset: 0; }
+.card.table-card-leave-to { opacity: 0; }
 
 .log-panel {
   align-self: center;
