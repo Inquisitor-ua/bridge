@@ -109,6 +109,11 @@ const iVotedRematch = computed(() => rematchIds.value.includes(state.playerId));
 const rematchPossible = computed(() => rematchPlayerIds.value.length >= 2);
 const rematchReady = computed(() => rematchPlayerIds.value.filter((id) => rematchIds.value.includes(id)).length);
 
+// ---- full log window, opened by tapping the log lines ----
+const LOG_HISTORY = 20;
+const logOpen = ref(false);
+const logHistory = computed(() => (game.value.log || []).slice(-LOG_HISTORY).reverse());
+
 const selected = ref([]); // array of {rank, suit}
 
 // ---- idle reminder: the game waits on me and I've done nothing for a while
@@ -688,14 +693,14 @@ function snapBack(originRect) {
         <span v-if="turnCue" :key="turnCue" class="turn-flash">{{ turnCueText }}</span>
       </div>
 
-      <div class="log-panel">
-        <p v-for="(line, i) in (game.log || []).slice(-4)" :key="i">{{ line }}</p>
-      </div>
-
-      <!-- always in the layout (hidden when it's not my turn), so nothing jumps -->
-      <div class="turn-banner" :class="{ mine: myTurnShown }">
-        <span class="turn-dot"></span>
-        <span>Ваш ход</span>
+      <div class="log-panel" title="Показать историю ходов" @click="logOpen = true">
+        <!-- "your turn" is the last log line; it stands in for two lines of
+             history, so the panel keeps its height -->
+        <p v-for="(line, i) in (game.log || []).slice(myTurnShown ? -2 : -4)" :key="i">{{ line }}</p>
+        <div v-if="myTurnShown" class="turn-banner mine">
+          <span class="turn-dot"></span>
+          <span>Ваш ход</span>
+        </div>
       </div>
 
       <div class="hand-panel">
@@ -755,6 +760,17 @@ function snapBack(originRect) {
     <PromptBridge v-if="myPrompt && myPrompt.kind === 'bridge'" />
     <PromptJackEnd v-if="myPrompt && myPrompt.kind === 'jack_end'" :count="myPrompt.data.count" />
     <RoundSummary v-if="roundSummary" :summary="roundSummary" @close="dismissedSummary = roundSummary.number" />
+
+    <div v-if="logOpen && !game.game_over" class="modal-backdrop" @click.self="logOpen = false">
+      <div class="modal log-modal" role="dialog" aria-label="История ходов">
+        <button class="rules-close" aria-label="Закрыть" @click="logOpen = false">✕</button>
+        <p class="overline">История ходов</p>
+        <!-- newest first in the DOM, drawn bottom-up: the list opens scrolled to the latest line -->
+        <div class="log-list">
+          <p v-for="(line, i) in logHistory" :key="logHistory.length - i">{{ line }}</p>
+        </div>
+      </div>
+    </div>
 
     <div class="flight-layer">
       <CardFlight

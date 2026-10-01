@@ -806,7 +806,7 @@ button.ghost:hover:not(:disabled) {
   background: var(--faint);
   transition: background 0.3s;
 }
-.turn-banner:not(.mine) { visibility: hidden; }
+.log-panel .turn-banner { flex: none; margin-top: 5px; padding: 5px 16px; }
 .turn-banner.mine {
   color: var(--gold-2);
   font-weight: 600;
@@ -1009,7 +1009,7 @@ button.ghost:hover:not(:disabled) {
 .log-panel {
   align-self: center;
   width: min(100%, 560px);
-  min-height: calc(1.55em * 3);
+  min-height: calc(1.55em * 4);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -1019,9 +1019,28 @@ button.ghost:hover:not(:disabled) {
   color: var(--faint);
   text-align: center;
 }
+.log-panel { cursor: pointer; }
 .log-panel p { margin: 0; }
-.log-panel p:last-child { color: var(--ink-2); }
-.log-panel p:nth-last-child(2) { color: var(--muted); }
+
+/* the last moves in full, opened by tapping the log */
+.modal.log-modal { position: relative; width: min(100%, 440px); padding: 26px 22px 22px; }
+.log-list {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 5px;
+  max-height: min(60vh, 520px);
+  margin-top: 16px;
+  overflow-y: auto;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.log-list p { margin: 0; }
+.log-list p:first-child { color: var(--ink); }
+.log-panel p:last-of-type { color: var(--ink-2); }
+.log-panel p:nth-last-of-type(2) { color: var(--muted); }
 
 .hand-panel { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .hand {
@@ -1729,7 +1748,7 @@ button.ghost:hover:not(:disabled) {
   .rules-card-pic + .rules-card-pic { margin-left: -23px; }
   .rules-card-points { grid-column: 2; max-width: none; text-align: left; }
   .table-area { border-radius: 36px; }
-  .turn-banner { font-size: 0.8rem; padding: 7px 14px; }
+  .turn-banner { font-size: 0.8rem; }
   .hand-actions button { height: 40px; padding: 0 14px; font-size: 0.84rem; }
 }
 
