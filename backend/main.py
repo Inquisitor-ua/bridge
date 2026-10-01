@@ -37,6 +37,18 @@ async def broadcast_room(room) -> None:
             p.connected = False
 
 
+MAX_EMOTE_LEN = 16
+
+
+async def broadcast_emote(room, player_id: str, emoji: str) -> None:
+    for ws in list(room.sockets.values()):
+        try:
+            await ws.send_json({"type": "emote", "player_id": player_id, "emoji": emoji})
+        except Exception:
+            # a dead socket is cleaned up by the next state broadcast
+            pass
+
+
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -131,6 +143,15 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                         raise GameError("вы не в комнате")
                     room.vote_rematch(player.id)
                     await broadcast_room(room)
+
+                elif mtype == "emote":
+                    if room is None or player is None:
+                        raise GameError("вы не в комнате")
+                    emoji = msg.get("emoji")
+                    # the client only draws emoji from its own list, so the
+                    # server just relays a short string; spam is dropped silently
+                    if isinstance(emoji, str) and 0 < len(emoji) <= MAX_EMOTE_LEN and room.allow_emote(player.id):
+                        await broadcast_emote(room, player.id, emoji)
 
                 elif mtype == "leave_room":
                     if room is not None and player is not None:

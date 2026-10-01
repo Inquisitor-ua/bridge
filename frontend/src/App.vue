@@ -1,16 +1,33 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { state, leaveRoom } from "./store.js";
 import Lobby from "./components/Lobby.vue";
 import WaitingRoom from "./components/WaitingRoom.vue";
 import GameTable from "./components/GameTable.vue";
 import RulesModal from "./components/RulesModal.vue";
+import SoundControl from "./components/SoundControl.vue";
 
 const inRoom = computed(() => !!state.room && !!state.playerId);
 const started = computed(() => inRoom.value && state.game && state.game.started);
 const rulesOpen = ref(false);
 
+// phone header: the burger dropdown
+const menuOpen = ref(false);
+const metaEl = ref(null);
+
+function onOutsidePointer(ev) {
+  if (menuOpen.value && metaEl.value && !metaEl.value.contains(ev.target)) menuOpen.value = false;
+}
+onMounted(() => document.addEventListener("pointerdown", onOutsidePointer));
+onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePointer));
+
+function openRules() {
+  menuOpen.value = false;
+  rulesOpen.value = true;
+}
+
 function onLeave() {
+  menuOpen.value = false;
   const inProgress = started.value && !state.game.game_over;
   if (inProgress && !confirm("Выйти из игры? Вы выбудете из текущей партии.")) return;
   leaveRoom();
@@ -25,19 +42,34 @@ function onLeave() {
         <span class="brand-name">Бридж</span>
       </div>
 
-      <div class="header-meta">
-        <span v-if="state.room" class="room-code">
-          <span class="room-code-label">Комната</span>
-          <span class="room-code-value">{{ state.room }}</span>
-        </span>
+      <div ref="metaEl" class="header-meta">
         <span class="conn" :class="{ ok: state.connected }" :title="state.connected ? 'подключено' : 'нет связи'">
           <span class="conn-dot"></span>
           <span class="conn-label">{{ state.connected ? "online" : "offline" }}</span>
         </span>
-        <button class="ghost small rules-btn" title="Правила игры" @click="rulesOpen = true">
-          <span class="rules-btn-q">?</span><span class="rules-btn-label">Правила</span>
+        <button
+          class="ghost small burger-btn"
+          aria-label="Меню"
+          :aria-expanded="menuOpen"
+          @click="menuOpen = !menuOpen"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path v-if="menuOpen" d="M6 6l12 12M18 6L6 18" />
+            <path v-else d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
         </button>
-        <button v-if="inRoom" class="ghost small" @click="onLeave">Выйти</button>
+        <!-- desktop: laid out inline in the header; phones: a dropdown under the burger -->
+        <div class="header-menu" :class="{ open: menuOpen }">
+          <span v-if="state.room" class="room-code">
+            <span class="room-code-label">Комната</span>
+            <span class="room-code-value">{{ state.room }}</span>
+          </span>
+          <SoundControl />
+          <button class="ghost small rules-btn" title="Правила игры" @click="openRules">
+            <span class="rules-btn-q">?</span><span class="rules-btn-label">Правила</span>
+          </button>
+          <button v-if="inRoom" class="ghost small" @click="onLeave">Выйти</button>
+        </div>
       </div>
     </header>
 

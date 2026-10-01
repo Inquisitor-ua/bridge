@@ -15,7 +15,30 @@ export const state = reactive({
   error: null,
   // full room/game state as sent by the server ("state" message minus the "type" field)
   game: null,
+  // emotes on screen right now: player id -> { emoji, id }
+  emotes: {},
 });
+
+export const EMOTES = ["😂", "😎", "😍", "🤔", "😱", "😭", "😡", "🥱", "👍", "👎", "👏", "🔥"];
+const EMOTE_SHOW_MS = 3000;
+const emoteTimers = {};
+let emoteSeq = 0;
+
+function showEmote(playerId, emoji) {
+  if (!EMOTES.includes(emoji)) return;
+  clearTimeout(emoteTimers[playerId]);
+  // a fresh id restarts the pop animation when the same player sends another
+  state.emotes[playerId] = { emoji, id: ++emoteSeq };
+  emoteTimers[playerId] = setTimeout(() => delete state.emotes[playerId], EMOTE_SHOW_MS);
+}
+
+function clearEmotes() {
+  for (const pid of Object.keys(emoteTimers)) {
+    clearTimeout(emoteTimers[pid]);
+    delete emoteTimers[pid];
+  }
+  state.emotes = {};
+}
 
 let socket = null;
 let queuedMessages = [];
@@ -58,6 +81,8 @@ function handleMessage(msg) {
   } else if (msg.type === "state") {
     state.hostId = msg.host_id;
     state.game = msg;
+  } else if (msg.type === "emote") {
+    showEmote(msg.player_id, msg.emoji);
   } else if (msg.type === "error") {
     state.error = msg.message;
   }
@@ -154,6 +179,10 @@ export function voteRematch() {
   send({ type: "rematch" });
 }
 
+export function sendEmote(emoji) {
+  send({ type: "emote", emoji });
+}
+
 export function leaveRoom() {
   // tell the server first so the player is removed from the room (lobby) or
   // forfeits (running game); the socket itself stays open for the lobby
@@ -166,4 +195,5 @@ export function leaveRoom() {
   state.hostId = null;
   state.game = null;
   state.error = null;
+  clearEmotes();
 }

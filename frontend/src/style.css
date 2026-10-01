@@ -203,6 +203,11 @@ h1, h2, h3, h4 { font-weight: 600; margin: 0; }
 .is-lobby .brand { visibility: hidden; }
 
 .header-meta { display: flex; align-items: center; gap: 14px; }
+/* desktop: the menu's items sit straight in the header row; the burger and
+   the dropdown look only exist on phones (see Responsive) */
+.header-menu { display: contents; }
+.header-menu .room-code { order: -1; }
+.header-meta .burger-btn { display: none; flex: none; width: 32px; padding: 0; }
 
 .room-code {
   display: inline-flex;
@@ -245,6 +250,48 @@ h1, h2, h3, h4 { font-weight: 600; margin: 0; }
   transition: background 0.3s, box-shadow 0.3s;
 }
 .conn.ok .conn-dot { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+
+/* sound: mute toggle + volume slider */
+.sound-control { display: inline-flex; align-items: center; gap: 8px; }
+/* .sound-control prefix: must outrank the later `button.small` padding */
+.sound-control .sound-btn { flex: none; width: 32px; padding: 0; color: var(--gold-2); }
+.sound-btn svg { flex: none; width: 17px; height: 17px; }
+.sound-control.silent .sound-btn { color: var(--muted); }
+.sound-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 84px;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.sound-slider:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+.sound-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold) var(--fill, 0%), var(--surface-3) var(--fill, 0%));
+}
+.sound-slider::-moz-range-track { height: 4px; border-radius: 999px; background: var(--surface-3); }
+.sound-slider::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--gold); }
+.sound-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gold-2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.sound-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gold-2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
 
 .error-banner {
   margin: 0 0 14px;
@@ -610,6 +657,59 @@ button.ghost:hover:not(:disabled) {
 }
 .player-chip.eliminated { opacity: 0.4; }
 
+/* emotes: a bubble that pops over the sender's avatar for a few seconds */
+.scoreboard-wrap { position: relative; margin: 12px 0; }
+.emote-bubble {
+  position: absolute;
+  inset: -8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-sans);
+  font-size: 1.9rem;
+  line-height: 1;
+  background: var(--modal);
+  border: 1px solid var(--gold-line);
+  box-shadow: 0 0 18px -4px rgba(200, 169, 106, 0.55), var(--shadow-1);
+  pointer-events: none;
+  animation: emotePop 0.45s var(--ease-pop);
+}
+@keyframes emotePop {
+  from { opacity: 0; transform: scale(0.4) rotate(-14deg); }
+}
+.emote-leave-active { transition: opacity 0.25s, transform 0.25s var(--ease-smooth); }
+.emote-leave-to { opacity: 0; transform: scale(0.6); }
+
+.player-chip .emote-btn { flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; color: var(--gold-2); }
+.emote-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 160;
+  translate: -50% 0;
+  display: grid;
+  grid-template-columns: repeat(6, 40px);
+  gap: 4px;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--modal);
+  box-shadow: var(--shadow-2);
+}
+.emote-option {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: transparent;
+}
+.emote-option:hover { background: var(--surface-3); }
+.picker-enter-active, .picker-leave-active { transition: opacity 0.18s, transform 0.22s var(--ease-pop); }
+.picker-enter-from, .picker-leave-to { opacity: 0; transform: translateY(-6px) scale(0.95); }
+
 /* opponent's hand: a small fan of card backs, one per card */
 .mini-hand {
   --mw: 18px;
@@ -653,6 +753,21 @@ button.ghost:hover:not(:disabled) {
   transform-origin: 0 0;
   will-change: transform;
 }
+/* a flight that turns the card over: back and face share one 3D flipper */
+.card-flight.flip { perspective: 700px; }
+.card-flipper {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  transform-style: preserve-3d;
+}
+.card-flipper .card {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.card-flipper .flip-front { transform: rotateY(180deg); }
 
 /* =====================================================================
    Game table
@@ -691,6 +806,7 @@ button.ghost:hover:not(:disabled) {
   background: var(--faint);
   transition: background 0.3s;
 }
+.turn-banner:not(.mine) { visibility: hidden; }
 .turn-banner.mine {
   color: var(--gold-2);
   font-weight: 600;
@@ -714,13 +830,13 @@ button.ghost:hover:not(:disabled) {
   background:
     radial-gradient(ellipse 60% 70% at 50% 40%, var(--felt-hi) 0%, transparent 70%),
     radial-gradient(ellipse at 50% 50%, var(--felt) 0%, var(--felt-lo) 100%);
-  border: 1px solid rgba(200, 169, 106, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.4),
     inset 0 20px 60px rgba(0, 0, 0, 0.35),
     inset 0 -30px 60px rgba(0, 0, 0, 0.3),
     0 30px 60px -30px rgba(0, 0, 0, 0.8);
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition: border-color 0.4s, box-shadow 0.4s;
 }
 /* inner rail line */
 .table-area::before {
@@ -728,9 +844,9 @@ button.ghost:hover:not(:disabled) {
   position: absolute;
   inset: 12px;
   border-radius: inherit;
-  border: 1px solid rgba(200, 169, 106, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   pointer-events: none;
-  transition: border-color 0.3s;
+  transition: border-color 0.4s;
 }
 /* felt weave */
 .table-area::after {
@@ -742,24 +858,63 @@ button.ghost:hover:not(:disabled) {
   opacity: 0.5;
   background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
 }
-/* your turn: a warm gold glow around and inside the felt */
+/* your turn: a gold rim with a slowly breathing glow around and inside the felt */
 .table-area.my-turn {
-  border-color: rgba(200, 169, 106, 0.55);
+  border-color: rgba(200, 169, 106, 0.7);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.4),
-    inset 0 0 90px rgba(200, 169, 106, 0.1),
-    0 0 36px -6px rgba(200, 169, 106, 0.28),
+    inset 0 0 80px rgba(200, 169, 106, 0.07),
+    0 0 26px -8px rgba(200, 169, 106, 0.2),
     0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  animation: tableGlow 2.6s ease-in-out infinite;
 }
-.table-area.my-turn::before { border-color: rgba(200, 169, 106, 0.28); }
+@keyframes tableGlow {
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+      inset 0 0 88px rgba(200, 169, 106, 0.1),
+      0 0 32px -6px rgba(200, 169, 106, 0.3),
+      0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+}
+.table-area.my-turn::before { border-color: rgba(200, 169, 106, 0.32); }
 .table-area.drop-ready::before { border-color: rgba(200, 169, 106, 0.3); border-style: dashed; }
 .table-area.drop-hover { border-color: var(--gold); }
 .table-area.drop-hover::before { border-color: var(--gold); border-style: solid; }
 .table-area.drop-hover {
+  animation: none;
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.4),
     inset 0 0 80px rgba(200, 169, 106, 0.12),
     0 30px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* "your turn" announcement: pops over the middle of the felt and fades out */
+.turn-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  padding: 10px 34px;
+  border-radius: 999px;
+  font-family: var(--font-serif);
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: var(--gold-2);
+  background: rgba(8, 14, 12, 0.82);
+  border: 1px solid var(--gold-line);
+  box-shadow: 0 0 44px -6px rgba(200, 169, 106, 0.55), var(--shadow-2);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: turnFlash 1.25s var(--ease-smooth) both;
+}
+@keyframes turnFlash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
+  16%, 68% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
 .drop-hint {
   position: absolute;
@@ -876,7 +1031,12 @@ button.ghost:hover:not(:disabled) {
   width: 100%;
   justify-content: center;
   min-height: calc(var(--card-h) + 36px);
+  transition: transform 0.4s var(--ease-smooth);
 }
+/* not my move: the hand sinks and dims; hovering a card still shows it clearly */
+.hand.idle { transform: translateY(14px); }
+.hand.idle .card { filter: brightness(0.58) saturate(0.65); }
+.hand.idle .hand-card:hover .card { filter: none; }
 
 /* fan-out hand card wrapper: rotates + lifts slightly for an arced hand;
    un-fans and pops toward the viewer on hover so the whole card is visible */
@@ -906,9 +1066,31 @@ button.ghost:hover:not(:disabled) {
 .hand-enter-from { opacity: 0; transform: translateY(80px) scale(0.6) rotate(var(--fan-rotate, 0)); }
 .hand-leave-active { transition: all 0.22s ease-in; position: absolute; }
 .hand-leave-to { opacity: 0; transform: translateY(-70px) scale(0.7) rotate(8deg) !important; }
+/* opening deal: the card arrives as a flight from the deck, so it just fades in */
+.hand-deal-move { transition: transform 0.2s var(--ease-smooth); }
+.hand-deal-enter-active { transition: opacity 0.12s linear; }
+.hand-deal-enter-from { opacity: 0; }
+/* invisible card-sized box: tells the deal how wide a hand card is */
+.hand-sizer { position: absolute; width: var(--card-w); visibility: hidden; pointer-events: none; }
 
-.hand-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; min-height: 44px; }
-.hand-actions.hidden { visibility: hidden; }
+.hand-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; min-height: 44px; }
+/* idle reminder: the "end turn" button keeps pulsing until the player acts */
+.hand-actions button.nudge { color: var(--gold-2); border-color: var(--gold-line); animation: nudgePulse 1.4s ease-in-out infinite; }
+@keyframes nudgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 169, 106, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(200, 169, 106, 0.28); }
+}
+.hand-waiting { margin: 0; font-size: 0.86rem; color: var(--muted); }
+.wait-dots { display: inline-flex; gap: 4px; margin-left: 7px; }
+.wait-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: softPulse 1.2s ease-in-out infinite;
+}
+.wait-dots i:nth-child(2) { animation-delay: 0.2s; }
+.wait-dots i:nth-child(3) { animation-delay: 0.4s; }
 .pop-enter-active { transition: opacity 0.2s, transform 0.25s var(--ease-pop); }
 .pop-enter-from { opacity: 0; transform: scale(0.9); }
 
@@ -1040,17 +1222,13 @@ button.ghost:hover:not(:disabled) {
 }
 
 /* interactive states */
-.card.playable { cursor: grab; }
-.card.playable::after {
-  content: "";
-  position: absolute;
-  left: 30%;
-  right: 30%;
-  bottom: calc(var(--card-w) * -0.1);
-  height: 2px;
-  border-radius: 2px;
-  background: var(--gold);
-  opacity: 0.9;
+.card.playable {
+  cursor: grab;
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 18px -6px rgba(0, 0, 0, 0.55),
+    0 0 12px -4px rgba(200, 169, 106, 0.4);
 }
 .hand.acting .card:not(.playable) { filter: brightness(0.7) saturate(0.75); }
 .hand .card { transition: box-shadow 0.25s var(--ease-smooth), transform 0.25s var(--ease-smooth), filter 0.3s; }
@@ -1062,7 +1240,6 @@ button.ghost:hover:not(:disabled) {
     0 18px 30px -10px rgba(0, 0, 0, 0.7),
     0 0 26px -4px rgba(200, 169, 106, 0.45);
 }
-.card.selected::after { opacity: 0; }
 
 /* ---- Drag ghost (custom smooth drag & drop) ---- */
 .drag-ghost {
@@ -1089,7 +1266,6 @@ button.ghost:hover:not(:disabled) {
   transform: scale(1.1) rotate(-2deg);
   box-shadow: 0 0 0 1px var(--gold), 0 30px 50px -12px rgba(0, 0, 0, 0.75);
 }
-.drag-ghost .card::after { display: none; }
 
 /* =====================================================================
    Standings (game over)
@@ -1515,22 +1691,45 @@ button.ghost:hover:not(:disabled) {
 @media (max-width: 640px) {
   .app-shell { padding: 10px 16px 16px; }
   .app-header { margin-bottom: 10px; padding-bottom: 10px; }
-  .conn-label, .room-code-label { display: none; }
+  .conn-label { display: none; }
+  .header-meta { gap: 10px; position: relative; }
+  .header-meta .burger-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .header-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 200;
+    width: min(260px, calc(100vw - 32px));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line-strong);
+    background: var(--modal);
+    box-shadow: var(--shadow-2);
+  }
+  .header-menu.open { display: flex; }
+  .header-menu .room-code { justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: var(--radius-sm); }
+  .header-menu .sound-slider { flex: 1; width: auto; min-width: 0; }
+  .header-menu > button { width: 100%; justify-content: center; }
   .brand-name { font-size: 1.35rem; }
   .player-chip { padding: 6px 12px 6px 6px; gap: 9px; }
   .player-chip .avatar { width: 34px; height: 34px; font-size: 0.95rem; }
   .player-chip .name { font-size: 0.86rem; }
   .player-chip .meta { font-size: 0.74rem; }
+  .scoreboard-wrap { margin: 0; }
   .mini-hand { --mw: 14px; }
-  .rules-btn { width: 32px; padding: 0; }
-  .rules-btn-label { display: none; }
+  .emote-bubble { inset: -6px; font-size: 1.55rem; }
+  .player-chip .emote-btn { width: 30px; height: 30px; }
   .modal.rules-modal { padding: 24px 18px 20px; }
   .rules-card-row { grid-template-columns: 52px 1fr; gap: 10px; }
   .rules-card-pic { --card-w: 30px; }
   .rules-card-pic + .rules-card-pic { margin-left: -23px; }
   .rules-card-points { grid-column: 2; max-width: none; text-align: left; }
   .table-area { border-radius: 36px; }
-  .turn-banner { border-radius: 14px; font-size: 0.8rem; padding: 7px 14px; }
+  .turn-banner { font-size: 0.8rem; padding: 7px 14px; }
   .hand-actions button { height: 40px; padding: 0 14px; font-size: 0.84rem; }
 }
 

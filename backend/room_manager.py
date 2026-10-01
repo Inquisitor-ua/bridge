@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import random
 import string
+import time
 import uuid
 from dataclasses import dataclass, field
 
@@ -13,6 +14,7 @@ from .engine import Engine, GameError, Player
 
 MIN_PLAYERS = 2
 MAX_PLAYERS = 6
+EMOTE_COOLDOWN = 1.0  # seconds between two emotes from one player
 ROOM_CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
@@ -31,6 +33,14 @@ class Room:
     # after game over: players who pressed "new game"; the rematch starts once
     # everyone still in the room has voted
     rematch_ids: set[str] = field(default_factory=set)
+    emote_at: dict[str, float] = field(default_factory=dict)  # player id -> time of their last emote
+
+    def allow_emote(self, pid: str) -> bool:
+        now = time.monotonic()
+        if now - self.emote_at.get(pid, -EMOTE_COOLDOWN) < EMOTE_COOLDOWN:
+            return False
+        self.emote_at[pid] = now
+        return True
 
     def player(self, pid: str) -> Player | None:
         for p in self.players:

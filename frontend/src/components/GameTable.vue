@@ -1,6 +1,7 @@
 <script setup>
-import { ref, reactive, computed, watch } from "vue";
+import { ref, reactive, computed, watch, onUnmounted } from "vue";
 import { state, playCards, drawCard, passTurn, leaveRoom, voteRematch } from "../store.js";
+import { playTurnChime, playCardDraw, playCardPlace, playShuffle, playRoundEnd, playGameWin, playGameLose } from "../sound.js";
 import PlayingCard from "./PlayingCard.vue";
 import Scoreboard from "./Scoreboard.vue";
 import PromptSuit from "./PromptSuit.vue";
@@ -14,13 +15,73 @@ const myHand = computed(() => game.value.your_hand || []);
 const isMyTurn = computed(() => game.value.turn_player_id === state.playerId);
 const legalCards = computed(() => game.value.legal_cards || []);
 const prompt = computed(() => game.value.prompt);
-const canAct = computed(() => isMyTurn.value && !prompt.value);
+const DECK_SIZE = 36;
+
+// nothing has been played yet: every card is in a hand, in the deck, or is
+// the single opener on the table
+function isFreshDeal(g) {
+  if (!g || !g.round_active || !g.table_top || g.multiplier > 1) return false;
+  const held = (g.players || []).reduce((sum, p) => sum + (p.eliminated ? 0 : p.hand_count), 0);
+  return held + g.deck_count + 1 === DECK_SIZE;
+}
+
+// true while the opening deal is still flying out; the turn starts after it.
+// Set from the start when the table opens straight onto a fresh deal.
+const dealing = ref(isFreshDeal(state.game));
+const canAct = computed(() => isMyTurn.value && !prompt.value && !dealing.value);
 const mustCoverSix = computed(() => !!game.value.must_cover_six);
-const myPrompt = computed(() => prompt.value && prompt.value.player_id === state.playerId ? prompt.value : null);
+const myPrompt = computed(() => !dealing.value && prompt.value && prompt.value.player_id === state.playerId ? prompt.value : null);
 const promptOwnerName = computed(() => {
   if (!prompt.value) return "";
   const p = (game.value.players || []).find((x) => x.id === prompt.value.player_id);
   return p ? p.name : "";
+});
+const turnPlayerName = computed(() => {
+  const p = (game.value.players || []).find((x) => x.id === game.value.turn_player_id);
+  return p ? p.name : "…";
+});
+// shown in place of the action buttons while there is nothing for me to do
+const waitingText = computed(() => {
+  if (canAct.value || myPrompt.value || game.value.awaiting_continue) return "";
+  if (dealing.value) return "Раздаём карты";
+  return prompt.value ? `Ждём решение: ${promptOwnerName.value}` : `Ждём ход: ${turnPlayerName.value}`;
+});
+
+// ---- "your turn" cue: table flash, vibration, chime, tab title ----
+const BASE_TITLE = "Бридж";
+const myTurnLive = computed(() => isMyTurn.value && !dealing.value && !game.value.awaiting_continue && !game.value.game_over);
+const myTurnShown = computed(() => isMyTurn.value && !prompt.value && !dealing.value && !game.value.awaiting_continue);
+const turnCue = ref(0); // > 0 while the flash is on the table; doubles as its key
+const turnCueText = ref("Ваш ход");
+let turnCueSeq = 0;
+let turnCueTimer = null;
+
+function announceTurn(text = "Ваш ход") {
+  turnCueText.value = text;
+  turnCue.value = ++turnCueSeq;
+  clearTimeout(turnCueTimer);
+  turnCueTimer = setTimeout(() => (turnCue.value = 0), 1300);
+  try {
+    navigator.vibrate?.(60);
+  } catch {
+    // vibration unsupported or blocked
+  }
+  playTurnChime();
+}
+
+watch(
+  myTurnLive,
+  (mine) => {
+    document.title = mine ? `● Ваш ход — ${BASE_TITLE}` : BASE_TITLE;
+    if (mine) announceTurn();
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  clearTimeout(turnCueTimer);
+  cancelDeal();
+  document.title = BASE_TITLE;
 });
 
 // ---- end-of-round summary ----
@@ -49,6 +110,37 @@ const rematchPossible = computed(() => rematchPlayerIds.value.length >= 2);
 const rematchReady = computed(() => rematchPlayerIds.value.filter((id) => rematchIds.value.includes(id)).length);
 
 const selected = ref([]); // array of {rank, suit}
+
+// ---- idle reminder: the game waits on me and I've done nothing for a while
+// (typically: played a card and forgot to end the turn) ----
+const IDLE_REMINDER_MS = 15000;
+const awaitingMe = computed(
+  () => (canAct.value || !!myPrompt.value) && !game.value.awaiting_continue && !game.value.game_over
+);
+const idleNudge = ref(false); // on from a reminder until my next action
+let idleTimer = null;
+
+function remindTurn() {
+  idleNudge.value = true;
+  announceTurn(canAct.value && game.value.can_pass && game.value.has_played_this_turn ? "Закончите ход" : "Ваш ход");
+  idleTimer = setTimeout(remindTurn, IDLE_REMINDER_MS);
+}
+
+// any sign of life (a tap, a key, a selection, a new server state) restarts the wait
+function armIdleReminder() {
+  clearTimeout(idleTimer);
+  idleNudge.value = false;
+  if (awaitingMe.value) idleTimer = setTimeout(remindTurn, IDLE_REMINDER_MS);
+}
+
+watch([awaitingMe, () => state.game, selected], armIdleReminder, { immediate: true });
+window.addEventListener("pointerdown", armIdleReminder, { passive: true });
+window.addEventListener("keydown", armIdleReminder, { passive: true });
+onUnmounted(() => {
+  clearTimeout(idleTimer);
+  window.removeEventListener("pointerdown", armIdleReminder);
+  window.removeEventListener("keydown", armIdleReminder);
+});
 
 function sameCard(a, b) {
   return a.rank === b.rank && a.suit === b.suit;
@@ -228,17 +320,152 @@ function flyPlay(playerId, n, newTop, oldTop) {
 }
 
 function resetFlights() {
+  cancelDeal();
   flights.value = [];
   for (const k of Object.keys(incoming)) delete incoming[k];
   holdCount = 0;
   heldTop.value = undefined;
 }
 
+// ---- opening deal: cards leave the deck one by one, round the table, and
+// the dealer's last card is turned over onto the table ----
+const DEAL_FLIGHT = 300; // ms one dealt card spends in the air
+const handEl = ref(null);
+const handSizerEl = ref(null);
+const dealtMine = ref(0); // my cards that have already landed
+const dealLeft = ref(0); // cards of the deal still sitting on the deck
+let dealRun = 0;
+let dealTimer = null;
+
+const shownHand = computed(() => (dealing.value ? myHand.value.slice(0, dealtMine.value) : myHand.value));
+
+function cancelDeal() {
+  dealRun++;
+  clearTimeout(dealTimer);
+  dealing.value = false;
+  dealLeft.value = 0;
+}
+
+// where my k-th dealt card ends up: the right end of the centred fan so far
+function handSlot(k) {
+  const el = handEl.value?.$el;
+  const width = handSizerEl.value?.offsetWidth;
+  if (!el || !width) return null;
+  const r = el.getBoundingClientRect();
+  return {
+    left: r.left + r.width / 2 - width / 2 + k * width * 0.375,
+    top: r.top + parseFloat(getComputedStyle(el).paddingTop),
+    width,
+  };
+}
+
+// `wait` lets the table render (and settle) before the first card leaves
+function startDeal(wait) {
+  if (reduceMotion || document.visibilityState !== "visible") return cancelDeal();
+  const g = game.value;
+  const seats = (g.players || []).filter((p) => !p.eliminated && p.hand_count > 0);
+  const order = [];
+  for (let r = 0; seats.some((p) => r < p.hand_count); r++) {
+    for (const p of seats) if (r < p.hand_count) order.push(p.id);
+  }
+  if (!order.length) return cancelDeal();
+
+  const run = ++dealRun;
+  dealing.value = true;
+  dealtMine.value = 0;
+  dealLeft.value = order.length + 1;
+  for (const p of seats) if (p.id !== state.playerId) incoming[p.id] = p.hand_count;
+  if (holdCount++ === 0) heldTop.value = null;
+
+  const gap = Math.min(90, Math.max(55, 1500 / order.length));
+  const airborne = {}; // player id -> cards launched but not landed yet
+  let mineSent = 0;
+
+  function dealOne(pid) {
+    const mine = pid === state.playerId;
+    const deckCard = deckEl.value?.querySelector(".card");
+    const hand = mine ? null : miniHandEl(pid);
+    const to = mine ? handSlot(mineSent++) : hand && miniSlot(hand, airborne[pid] || 0);
+    airborne[pid] = (airborne[pid] || 0) + 1;
+    dealLeft.value--;
+    playCardDraw();
+    const land = () => {
+      if (run !== dealRun) return;
+      airborne[pid]--;
+      if (mine) dealtMine.value++;
+      else landIncoming(pid, 1);
+    };
+    if (!deckCard || !to) return land();
+    const from = rectOf(deckCard);
+    flights.value.push({ id: ++flightSeq, card: null, from, to, width: from.width, delay: 0, duration: DEAL_FLIGHT, onDone: land });
+  }
+
+  function dealOpener() {
+    const deckCard = deckEl.value?.querySelector(".card");
+    const pile = discardEl.value;
+    dealLeft.value = 0;
+    playCardDraw();
+    const land = () => {
+      if (run !== dealRun) return;
+      playCardPlace();
+      releaseTop();
+      dealing.value = false;
+    };
+    if (!deckCard || !pile) return land();
+    const from = rectOf(deckCard);
+    flights.value.push({ id: ++flightSeq, card: g.table_top, flip: true, from, to: rectOf(pile), width: from.width, delay: 0, duration: 560, onDone: land });
+  }
+
+  let i = 0;
+  function step() {
+    if (run !== dealRun) return;
+    if (i < order.length) {
+      dealOne(order[i++]);
+      // the opener waits for the last hand card to land
+      dealTimer = setTimeout(step, i < order.length ? gap : DEAL_FLIGHT);
+    } else {
+      dealOpener();
+    }
+  }
+  dealTimer = setTimeout(step, wait);
+}
+
+// the table was opened straight onto a fresh deal (the game has just started)
+if (dealing.value) startDeal(380);
+
+// ---- card sounds, derived from what changed between two server states ----
+function playSoundsFor(nv, ov) {
+  if (!nv || !ov) return;
+  // a fresh deal (next round or a rematch): the deal animation makes its own sounds
+  if (nv.round_number !== ov.round_number || (!ov.round_active && nv.round_active)) return;
+  if (!ov.round_active) return;
+  // the multiplier only grows when the deck ran out and was reshuffled
+  const reshuffled = nv.multiplier > ov.multiplier;
+  if (reshuffled) playShuffle();
+  const before = new Map((ov.players || []).map((p) => [p.id, p.hand_count]));
+  for (const p of nv.players || []) {
+    if (!before.has(p.id)) continue;
+    const delta = p.hand_count - before.get(p.id);
+    if (delta > 0) playCardDraw(Math.min(delta, 6), reshuffled ? 0.95 : 0);
+    else if (delta < 0) playCardPlace(Math.min(-delta, 4));
+  }
+  if (nv.game_over && !ov.game_over) {
+    // the whole game is decided: the winner and the rest hear different cues
+    const standings = nv.standings || [];
+    const winner = standings[0] && !standings[0].eliminated ? standings[0].id : null;
+    if (winner === state.playerId) playGameWin(0.55);
+    else if (standings.some((s) => s.id === state.playerId)) playGameLose(0.55);
+    else playRoundEnd(0.55);
+  } else if (nv.awaiting_continue && !ov.awaiting_continue) playRoundEnd(0.55);
+}
+
 watch(
   () => state.game,
   (nv, ov) => {
+    playSoundsFor(nv, ov);
     if (!nv || !ov || nv.round_number !== ov.round_number || !ov.round_active) {
       resetFlights();
+      if (ov && isFreshDeal(nv)) startDeal(150);
       return;
     }
     if (reduceMotion) return;
@@ -414,23 +641,10 @@ function snapBack(originRect) {
     </div>
 
     <template v-else>
-      <div class="turn-banner" :class="{ mine: isMyTurn && !prompt && !game.awaiting_continue }">
-        <span class="turn-dot"></span>
-        <span v-if="game.awaiting_continue">Раздача завершена — ждём, пока все нажмут «Продолжить»</span>
-        <span v-else-if="prompt">Ожидаем решение игрока {{ promptOwnerName }}…</span>
-        <span v-else-if="isMyTurn && mustCoverSix">Нужно накрыть шестёрку — тяните карты, пока не найдётся подходящая</span>
-        <span v-else-if="isMyTurn && game.suit_pending">Можно доложить ещё валетов — масть выберете, когда закончите ход</span>
-        <span v-else-if="isMyTurn && game.has_played_this_turn">Можно доложить ещё карт того же номинала или закончить ход</span>
-        <span v-else-if="isMyTurn">Ваш ход</span>
-        <span v-else>
-          Ходит {{ (game.players || []).find(p => p.id === game.turn_player_id)?.name || "…" }}
-        </span>
-      </div>
-
       <div
         ref="tableAreaEl"
         class="table-area"
-        :class="{ 'my-turn': isMyTurn && !prompt && !game.awaiting_continue, 'drop-ready': drag.active && drag.phase === 'drag', 'drop-hover': drag.active && drag.overTable }"
+        :class="{ 'my-turn': myTurnShown, 'drop-ready': drag.active && drag.phase === 'drag', 'drop-hover': drag.active && drag.overTable }"
         @click="commitSelection"
       >
         <div class="pile">
@@ -438,7 +652,7 @@ function snapBack(originRect) {
             ref="deckEl"
             class="deck-pile"
             :class="{ drawable: canAct && game.can_draw }"
-            :title="`В колоде: ${game.deck_count}`"
+            :title="`В колоде: ${game.deck_count + dealLeft}`"
             @click.stop="canAct && game.can_draw && drawCard()"
           >
             <div class="deck-stack-shadow s2"></div>
@@ -446,7 +660,7 @@ function snapBack(originRect) {
             <PlayingCard :card="null" face-down :class="{ pulse: deckPulse }" />
             <span v-if="game.multiplier > 1" class="multiplier">×{{ game.multiplier }}</span>
           </div>
-          <span class="pile-label">Колода <b>{{ game.deck_count }}</b></span>
+          <span class="pile-label">Колода <b>{{ game.deck_count + dealLeft }}</b></span>
         </div>
 
         <div class="pile">
@@ -471,48 +685,68 @@ function snapBack(originRect) {
         </div>
 
         <span v-if="drag.active && drag.phase === 'drag'" class="drop-hint">Отпустите, чтобы сыграть</span>
+        <span v-if="turnCue" :key="turnCue" class="turn-flash">{{ turnCueText }}</span>
       </div>
 
       <div class="log-panel">
         <p v-for="(line, i) in (game.log || []).slice(-4)" :key="i">{{ line }}</p>
       </div>
 
+      <!-- always in the layout (hidden when it's not my turn), so nothing jumps -->
+      <div class="turn-banner" :class="{ mine: myTurnShown }">
+        <span class="turn-dot"></span>
+        <span>Ваш ход</span>
+      </div>
+
       <div class="hand-panel">
-        <TransitionGroup tag="div" name="hand" class="hand" :class="{ acting: canAct }">
+        <span ref="handSizerEl" class="hand-sizer"></span>
+        <TransitionGroup
+          ref="handEl"
+          tag="div"
+          :name="dealing ? 'hand-deal' : 'hand'"
+          class="hand"
+          :class="{ acting: canAct, idle: !canAct && !myPrompt && !dealing }"
+        >
           <div
-            v-for="(card, i) in myHand"
+            v-for="(card, i) in shownHand"
             :key="cardKey(card)"
             class="hand-card"
             :class="{ 'is-dragging-source': isDragged(card) }"
-            :style="fanStyle(i, myHand.length)"
+            :style="fanStyle(i, shownHand.length)"
             :ref="(el) => setCardEl(card, el)"
             @pointerdown="onCardPointerDown($event, card)"
           >
             <PlayingCard :card="card" :selected="isSelected(card)" :playable="isPlayable(card)" />
           </div>
         </TransitionGroup>
-        <div class="hand-actions" :class="{ hidden: !canAct }">
-          <Transition name="pop">
-            <button v-if="selected.length" class="primary" @click="commitSelection">
-              Сыграть <span class="btn-count">{{ selected.length }}</span>
+        <div class="hand-actions">
+          <template v-if="canAct">
+            <Transition name="pop">
+              <button v-if="selected.length" class="primary" @click="commitSelection">
+                Сыграть <span class="btn-count">{{ selected.length }}</span>
+              </button>
+            </Transition>
+            <button
+              class="ghost"
+              :disabled="!game.can_draw"
+              :title="!game.can_draw ? (game.has_played_this_turn ? 'После хода картой брать нельзя — доложите карту того же номинала или закончите ход' : 'За ход можно взять только одну карту') : ''"
+              @click="drawCard"
+            >
+              Взять карту
             </button>
-          </Transition>
-          <button
-            class="ghost"
-            :disabled="!game.can_draw"
-            :title="!game.can_draw ? (game.has_played_this_turn ? 'После хода картой брать нельзя — доложите карту того же номинала или закончите ход' : 'За ход можно взять только одну карту') : ''"
-            @click="drawCard"
-          >
-            Взять карту
-          </button>
-          <button
-            class="ghost"
-            :disabled="!game.can_pass"
-            :title="mustCoverSix ? 'Сначала нужно накрыть шестёрку' : (!game.can_pass ? 'Сначала нужно взять карту или сходить' : '')"
-            @click="passTurn"
-          >
-            {{ game.has_played_this_turn ? "Закончить ход" : "Пас" }}
-          </button>
+            <button
+              class="ghost"
+              :class="{ nudge: idleNudge && game.can_pass }"
+              :disabled="!game.can_pass"
+              :title="mustCoverSix ? 'Сначала нужно накрыть шестёрку' : (!game.can_pass ? 'Сначала нужно взять карту или сходить' : '')"
+              @click="passTurn"
+            >
+              {{ game.has_played_this_turn ? "Закончить ход" : "Пас" }}
+            </button>
+          </template>
+          <p v-else-if="waitingText" class="hand-waiting">
+            {{ waitingText }}<span class="wait-dots"><i></i><i></i><i></i></span>
+          </p>
         </div>
       </div>
     </template>
@@ -531,6 +765,8 @@ function snapBack(originRect) {
         :to="f.to"
         :width="f.width"
         :delay="f.delay"
+        :duration="f.duration"
+        :flip="f.flip"
         @done="finishFlight(f)"
       />
     </div>
