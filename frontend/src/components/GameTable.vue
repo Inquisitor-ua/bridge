@@ -452,7 +452,10 @@ function snapBack(originRect) {
         <div class="pile">
           <div ref="discardEl" class="discard-pile">
             <div v-if="!shownTop" class="card-slot"></div>
-            <Transition :name="tableEnter">
+            <!-- a landed opponent card swaps in instantly (css off): Vue would
+                 otherwise wait out the card's own box-shadow/transform transition
+                 with both cards on the pile, one below the other -->
+            <Transition :name="tableEnter" :css="tableEnter !== 'table-card-land'">
               <PlayingCard v-if="shownTop" :card="shownTop" :key="cardKey(shownTop)" />
             </Transition>
           </div>
