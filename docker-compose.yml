@@ -7,8 +7,14 @@ services:
     build: .
     container_name: bridge-app
     restart: unless-stopped
+    volumes:
+      # SQLite with accounts; survives image updates and container restarts
+      - bridge-data:/app/data
     networks:
       - edge
+
+volumes:
+  bridge-data:
 
 networks:
   edge:

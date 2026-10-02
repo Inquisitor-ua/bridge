@@ -1,15 +1,22 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { state, leaveRoom } from "./store.js";
+import { auth } from "./auth.js";
+import { route, openProfile } from "./router.js";
 import Lobby from "./components/Lobby.vue";
 import WaitingRoom from "./components/WaitingRoom.vue";
 import GameTable from "./components/GameTable.vue";
 import RulesModal from "./components/RulesModal.vue";
 import SoundControl from "./components/SoundControl.vue";
+import AuthModal from "./components/AuthModal.vue";
+import ProfilePage from "./components/ProfilePage.vue";
 
 const inRoom = computed(() => !!state.room && !!state.playerId);
 const started = computed(() => inRoom.value && state.game && state.game.started);
+const onProfile = computed(() => route.name === "profile");
 const rulesOpen = ref(false);
+const authOpen = ref(false);
+const userInitial = computed(() => (auth.user?.display_name || "?").charAt(0).toUpperCase());
 
 // phone header: the burger dropdown
 const menuOpen = ref(false);
@@ -26,6 +33,16 @@ function openRules() {
   rulesOpen.value = true;
 }
 
+function openAuth() {
+  menuOpen.value = false;
+  authOpen.value = true;
+}
+
+function openOwnProfile() {
+  menuOpen.value = false;
+  openProfile(auth.user.username);
+}
+
 function onLeave() {
   menuOpen.value = false;
   const inProgress = started.value && !state.game.game_over;
@@ -35,7 +52,7 @@ function onLeave() {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'is-lobby': !inRoom }">
+  <div class="app-shell" :class="{ 'is-lobby': !inRoom && !onProfile }">
     <header class="app-header">
       <div class="brand">
         <span class="brand-mark">♠</span>
@@ -68,7 +85,14 @@ function onLeave() {
           <button class="ghost small rules-btn" title="Правила игры" @click="openRules">
             <span class="rules-btn-q">?</span><span class="rules-btn-label">Правила</span>
           </button>
-          <button v-if="inRoom" class="ghost small" @click="onLeave">Выйти</button>
+          <button v-if="inRoom" class="ghost small" @click="onLeave">Покинуть игру</button>
+          <template v-if="auth.ready">
+            <button v-if="auth.user" class="ghost small user-btn" :title="auth.user.display_name" @click="openOwnProfile">
+              <span class="avatar user-btn-avatar">{{ userInitial }}</span>
+              <span class="user-btn-name">{{ auth.user.display_name }}</span>
+            </button>
+            <button v-else class="ghost small" @click="openAuth">Войти</button>
+          </template>
         </div>
       </div>
     </header>
@@ -78,11 +102,13 @@ function onLeave() {
     </Transition>
 
     <Transition name="view" mode="out-in">
-      <Lobby v-if="!inRoom" key="lobby" />
+      <ProfilePage v-if="onProfile" key="profile" />
+      <Lobby v-else-if="!inRoom" key="lobby" />
       <GameTable v-else-if="started" key="game" />
       <WaitingRoom v-else key="waiting" />
     </Transition>
 
     <RulesModal v-if="rulesOpen" @close="rulesOpen = false" />
+    <AuthModal v-if="authOpen" @close="authOpen = false" />
   </div>
 </template>

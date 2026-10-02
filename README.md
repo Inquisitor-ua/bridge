@@ -2,7 +2,7 @@
 
 Браузерная карточная игра для 2-6 игроков в комнатах по WebSocket.
 Бэкенд — FastAPI (вся игровая логика и состояние комнаты живут в памяти
-процесса, без БД). Фронтенд — Vue 3 + Vite, карты на руке — снизу экрана,
+процесса; в SQLite хранятся только аккаунты). Фронтенд — Vue 3 + Vite, карты на руке — снизу экрана,
 ход делается перетаскиванием карты на игровое поле (drag & drop).
 
 ## Запуск в разработке
@@ -31,6 +31,27 @@ npm run dev
 Открыть http://localhost:5173 — dev-сервер Vite проксирует `/ws` на бэкенд
 (см. `frontend/vite.config.js`).
 
+## Аккаунты
+
+Аккаунт необязателен: гость играет как раньше, вводя имя в лобби.
+Зарегистрированный игрок играет под именем из профиля, а его `user_id`
+записывается в `Player`. Это пригодится для статистики.
+
+- Хранилище — SQLite (`backend/db.py`), путь задаётся через `BRIDGE_DB_PATH`
+  (по умолчанию `data/bridge.db`, папка в `.gitignore`). Таблицы создаются
+  сами при старте.
+- Пароли хешируются scrypt из стандартной библиотеки, без лишних зависимостей.
+- Сессия — случайный токен в httpOnly-cookie `bridge_auth` (SameSite=Lax,
+  30 дней). В базе лежит только его sha256. Тот же cookie приходит при
+  handshake `/ws`, так сервер узнаёт игрока. После входа или выхода фронтенд
+  переподключает сокет, и сохранённая сессия заново заходит в комнату.
+- REST: `POST /api/register`, `/api/login`, `/api/logout`, `GET /api/me`
+  (для гостя возвращает `null`), `PATCH /api/me` (смена имени),
+  `GET /api/users/{username}`. Неудачные входы и регистрации ограничены
+  по IP, лимиты хранятся в памяти.
+- Профиль на фронте открывается по адресу `#/u/<логин>` (мини-роутер
+  в `frontend/src/router.js`). Hash-адреса не требуют fallback от StaticFiles.
+
 ## PWA (установка на телефон)
 
 Фронтенд собирается как PWA (`vite-plugin-pwa`): манифест, иконки и service
@@ -56,6 +77,8 @@ Service worker обновляется сам (`registerType: "autoUpdate"`): п�
 рантайме uvicorn отдаёт и `frontend/dist` (статикой через FastAPI), и
 WebSocket `/ws`. Воркер строго один — комнаты и партии живут в памяти
 процесса, поэтому перезапуск контейнера обрывает все текущие игры.
+Аккаунты лежат в SQLite на именованном томе `bridge-data` (`/app/data`)
+и при обновлении образа не теряются.
 
 Снаружи его видит общий `edge-nginx` из `../nginx-proxy` через внешнюю
 сеть `edge` (порты на хост не публикуются); маршрут для
@@ -210,11 +233,16 @@ backend/
   engine.py         вся игровая логика одного раунда/комнаты
   room_manager.py   комнаты, игроки, коды комнат
   main.py           FastAPI + единственный WebSocket-эндпоинт /ws
+  auth.py           аккаунты: регистрация, вход, сессии, /api/*
+  db.py             SQLite-схема и подключение
   smoke_test.py      быстрые проверки движка (python -m backend.smoke_test)
   smoke_ws_test.py   проверка полного цикла через WebSocket API
 frontend/
   src/store.js              WebSocket-клиент и реактивное состояние
-  src/components/           Lobby, WaitingRoom, GameTable, PlayingCard, промпты
+  src/auth.js               клиент /api, текущий пользователь
+  src/router.js             hash-роутер (страница профиля)
+  src/components/           Lobby, WaitingRoom, GameTable, PlayingCard, промпты,
+                            AuthModal, ProfilePage
 Dockerfile          сборка фронтенда + рантайм uvicorn
 docker-compose.yml  контейнер bridge-app в сети edge
 ```

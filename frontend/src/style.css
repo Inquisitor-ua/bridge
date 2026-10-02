@@ -1473,7 +1473,8 @@ button.ghost:hover:not(:disabled) {
 .rules-modal li { color: var(--ink-2); font-size: 0.88rem; line-height: 1.55; }
 .rules-modal p { margin: 0; }
 .rules-modal b { color: var(--gold-2); }
-.rules-close {
+.rules-close,
+.modal-close {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -1486,7 +1487,8 @@ button.ghost:hover:not(:disabled) {
   background: transparent;
   border-color: transparent;
 }
-.rules-close:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
+.rules-close:hover:not(:disabled),
+.modal-close:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
 .rules-section {
   margin: 22px 0 10px;
   font-size: 0.7rem;
@@ -1708,6 +1710,86 @@ button.ghost:hover:not(:disabled) {
 .rs-note { margin: 0; color: var(--muted); font-size: 0.88rem; }
 
 /* =====================================================================
+   Accounts: header button, login modal, profile page
+   ===================================================================== */
+.user-btn { gap: 8px; padding-left: 4px; max-width: 200px; }
+.user-btn-avatar { width: 24px; height: 24px; font-size: 0.8rem; color: var(--gold-2); border-color: var(--gold-line); }
+.user-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.auth-backdrop { z-index: 300; }
+.modal.auth-modal {
+  position: relative;
+  width: min(100%, 400px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+.auth-modal h3 { margin: 0; }
+.auth-modal .rs-kicker { margin-bottom: -10px; }
+.auth-modal .primary { margin-top: 4px; height: 48px; }
+.auth-error { margin: 0; font-size: 0.84rem; color: var(--danger); }
+
+.lobby-as {
+  margin: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.lobby-as b { margin-left: 0.35em; color: var(--ink); font-weight: 600; }
+
+.profile { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 16px 0 48px; }
+.profile-back { align-self: flex-start; }
+.profile-card {
+  width: min(100%, 520px);
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+.profile-head { display: flex; align-items: center; gap: 20px; }
+.profile-avatar { width: 76px; height: 76px; font-size: 2.2rem; color: var(--gold-2); border-color: var(--gold-line); background: var(--gold-soft); }
+.profile-ident { flex: 1; min-width: 0; }
+.profile-name {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.profile-username { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.profile-muted { margin: 0; color: var(--muted); }
+.profile-edit { display: flex; flex-direction: column; gap: 10px; }
+.profile-edit-actions { display: flex; gap: 8px; }
+.profile-facts {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+.profile-facts dt {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.profile-facts dd { margin: 6px 0 0; color: var(--ink); font-size: 0.95rem; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+button.ghost.danger-text { color: var(--danger); }
+button.ghost.danger-text:hover:not(:disabled) { color: var(--danger); background: var(--danger-soft); border-color: rgba(212, 121, 108, 0.35); }
+
+/* =====================================================================
    Responsive
    ===================================================================== */
 @media (max-width: 640px) {
@@ -1746,6 +1828,11 @@ button.ghost:hover:not(:disabled) {
   .emote-bubble { inset: -6px; font-size: 1.55rem; }
   .player-chip .emote-btn { width: 30px; height: 30px; }
   .modal.rules-modal { padding: 24px 18px 20px; }
+  .header-menu .user-btn { max-width: none; }
+  .profile-card { padding: 22px 18px; }
+  .profile-head { gap: 14px; }
+  .profile-avatar { width: 60px; height: 60px; font-size: 1.7rem; }
+  .profile-name { font-size: 1.7rem; }
   .rules-card-row { grid-template-columns: 52px 1fr; gap: 10px; }
   .rules-card-pic { --card-w: 30px; }
   .rules-card-pic + .rules-card-pic { margin-left: -23px; }

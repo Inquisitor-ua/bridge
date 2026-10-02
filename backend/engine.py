@@ -26,6 +26,7 @@ class Player:
     score: int = 0
     eliminated: bool = False
     connected: bool = True
+    user_id: int | None = None  # account id; None for a guest
 
 
 class GameError(Exception):

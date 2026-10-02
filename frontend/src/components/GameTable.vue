@@ -657,7 +657,7 @@ function snapBack(originRect) {
         <button class="primary" :disabled="!rematchPossible || iVotedRematch" @click="voteRematch">
           {{ iVotedRematch ? "Вы готовы" : "Новая игра" }}
         </button>
-        <button class="ghost" @click="leaveRoom">Вернуться в лобби</button>
+        <button class="ghost" @click="leaveRoom">Покинуть игру</button>
       </div>
       <p class="standings-hint">
         <template v-if="!rematchPossible">Для новой игры в комнате не хватает игроков</template>

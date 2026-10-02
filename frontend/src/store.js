@@ -140,6 +140,17 @@ function reconnectNow() {
   connect();
 }
 
+// After logging in or out: the server reads the auth cookie only during the
+// WebSocket handshake, so open a fresh socket (the saved session rejoins the
+// room, if any).
+export function reconnectSocket() {
+  const old = socket;
+  socket = null;
+  state.connected = false;
+  if (old) old.close();
+  connect();
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") reconnectNow();
 });

@@ -7,8 +7,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from . import auth, db
 from .engine import GameError
 from .room_manager import RoomManager, parse_cards
+
+db.init_db()
 
 app = FastAPI(title="Bridge")
 app.add_middleware(
@@ -18,7 +21,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+
 manager = RoomManager()
+
+
+def player_identity(token: str | None, fallback_name: str) -> tuple[str, int | None]:
+    """Name and account id for a player joining a room: a logged-in user
+    plays under their profile name, a guest under whatever they typed."""
+    user = auth.user_by_token(token)
+    if user is None:
+        return fallback_name, None
+    return user["display_name"], user["id"]
 
 
 async def broadcast_room(room) -> None:
@@ -52,6 +66,9 @@ async def broadcast_emote(room, player_id: str, emoji: str) -> None:
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
+    # the auth cookie comes with the handshake; the client reconnects after
+    # logging in or out, so it never goes stale within one socket
+    auth_token = websocket.cookies.get(auth.COOKIE_NAME)
     room = None
     player = None
 
@@ -62,7 +79,8 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
             try:
                 if mtype == "create_room":
-                    room, player = manager.create_room(msg.get("name", "Игрок"))
+                    name, user_id = player_identity(auth_token, msg.get("name", "Игрок"))
+                    room, player = manager.create_room(name, user_id)
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -70,7 +88,8 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     await broadcast_room(room)
 
                 elif mtype == "join_room":
-                    room, player = manager.join_room(msg.get("room", ""), msg.get("name", "Игрок"))
+                    name, user_id = player_identity(auth_token, msg.get("name", "Игрок"))
+                    room, player = manager.join_room(msg.get("room", ""), name, user_id)
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -175,9 +194,9 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
 
 # In production (Docker) the built frontend is served by this same process, so
-# one container handles both the page and /ws. Mounted last so the /ws route
-# above takes priority. In dev the folder usually doesn't exist and Vite serves
-# the frontend instead.
+# one container handles both the page and /ws. Mounted last so the /ws and
+# /api routes above take priority. In dev the folder usually doesn't exist and
+# Vite serves the frontend instead.
 STATIC_DIR = Path(os.environ.get("BRIDGE_STATIC_DIR", Path(__file__).resolve().parent.parent / "frontend" / "dist"))
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
