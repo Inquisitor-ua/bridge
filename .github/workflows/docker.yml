@@ -1,6 +1,3 @@
-# Builds the Docker image on GitHub (the prod server is too weak to run the
-# frontend build itself) and publishes it to GHCR. The server then only
-# pulls it: docker compose pull && docker compose up -d
 name: docker
 
 on:
@@ -13,7 +10,18 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4             
+      - uses: actions/setup-python@v5         
+        with:
+          python-version: "3.12"              
+      - run: pip install -r backend/requirements.txt httpx
+      - run: python -m backend.smoke_test
+      - run: python -m backend.smoke_ws_test
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,3 +38,19 @@ jobs:
           tags: ghcr.io/inquisitor-ua/bridge:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deploy:
+    needs: build                              
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd bridge
+            git pull
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+
