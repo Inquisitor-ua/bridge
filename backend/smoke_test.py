@@ -649,6 +649,12 @@ def test_round_end_waits_for_everyone_to_continue():
     eng.turn_index = 0
     eng.pending_draw = eng.pending_skip = 0
     eng.drawn_this_turn = eng.played_this_turn = False
+    # the random opener may have been a Jack, leaving the dealer's suit
+    # prompt open, which would block the scripted play below
+    eng.prompt = None
+    eng.declared_suit = None
+    eng.jack_run = 0
+    eng.skip_source = None
     p0.hand = [Card(9, "clubs")]
     p1.hand = [Card(14, "spades"), Card(10, "clubs")]
     p2.hand = [Card(6, "spades")]
