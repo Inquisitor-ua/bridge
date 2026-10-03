@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { fetchUser, fetchUserStats } from "../auth.js";
 import { openProfile } from "../router.js";
 import UserAvatar from "./UserAvatar.vue";
+import FriendButton from "./FriendButton.vue";
 
 // A quick look at another player from the table: who they are and how they
 // usually do. The game keeps running underneath.
@@ -80,6 +81,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         </div>
       </div>
 
+      <div class="player-card-friend">
+        <FriendButton :username="player.username" />
+      </div>
       <button class="ghost block player-card-open" @click="goToProfile">Открыть профиль</button>
     </div>
   </div>

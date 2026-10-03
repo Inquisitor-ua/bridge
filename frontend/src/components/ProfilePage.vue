@@ -14,6 +14,7 @@ import { prepareAvatar } from "../avatarImage.js";
 import { route, goHome } from "../router.js";
 import ProfileStats from "./ProfileStats.vue";
 import UserAvatar from "./UserAvatar.vue";
+import FriendButton from "./FriendButton.vue";
 
 const PASSWORD_MIN = 6;
 
@@ -287,6 +288,9 @@ async function onLogout() {
           <button v-if="user.avatar_url" class="ghost small" :disabled="avatarBusy" @click="removeAvatar">Удалить фото</button>
           <button class="ghost small" @click="openForm('password')">Сменить пароль</button>
           <button class="ghost small danger-text" @click="onLogout">Выйти из аккаунта</button>
+        </div>
+        <div v-else-if="!isOwn && auth.user" class="profile-actions">
+          <FriendButton :username="user.username" />
         </div>
       </template>
     </section>

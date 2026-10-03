@@ -1983,6 +1983,12 @@ button.friend-who:hover .friend-name { color: var(--gold-2); }
 .player-card-stats .kpi { padding: 12px; }
 .player-card-stats .kpi-value { font-size: 1.4rem; }
 .player-card-open { margin-top: 20px; }
+.player-card-friend:not(:empty) { margin-top: 20px; }
+
+/* someone else's profile / mini profile: where the two of you stand */
+.friend-button { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.friend-tag { height: 32px; padding: 0 14px; font-size: 0.72rem; }
+.friend-button-error { flex-basis: 100%; margin: 0; font-size: 0.8rem; }
 
 /* profile statistics */
 .pstats-title {
