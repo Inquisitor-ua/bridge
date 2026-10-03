@@ -1,6 +1,9 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { createRoom, joinRoom } from "../store.js";
+import { auth } from "../auth.js";
+import { friends } from "../friends.js";
+import FriendRequests from "./FriendRequests.vue";
 import PlayingCard from "./PlayingCard.vue";
 
 const name = ref(localStorage.getItem("bridge_name") || "");
@@ -14,18 +17,22 @@ const HERO_CARDS = [
   { rank: 11, suit: "diamonds" },
 ];
 
+// a logged-in player always plays under their profile name (the server
+// substitutes it too); a guest types one
+const playerName = computed(() => (auth.user ? auth.user.display_name : name.value.trim()));
+
 function persistName() {
-  localStorage.setItem("bridge_name", name.value);
+  if (!auth.user) localStorage.setItem("bridge_name", name.value);
 }
 
 function submit() {
-  if (!name.value.trim()) return;
+  if (!playerName.value) return;
   persistName();
   if (mode.value === "create") {
-    createRoom(name.value.trim());
+    createRoom(playerName.value);
   } else {
     if (!roomCode.value.trim()) return;
-    joinRoom(roomCode.value.trim().toUpperCase(), name.value.trim());
+    joinRoom(roomCode.value.trim().toUpperCase(), playerName.value);
   }
 }
 </script>
@@ -50,7 +57,11 @@ function submit() {
         <span class="segmented-thumb" :class="{ right: mode === 'join' }"></span>
       </div>
 
-      <label class="field">
+      <div v-if="auth.user" class="field">
+        <span>Имя</span>
+        <p class="lobby-as">Вы играете как <b>{{ auth.user.display_name }}</b></p>
+      </div>
+      <label v-else class="field">
         <span>Имя</span>
         <input v-model="name" maxlength="24" placeholder="Как вас называть" @keyup.enter="submit" />
       </label>
@@ -70,9 +81,14 @@ function submit() {
         </label>
       </Transition>
 
-      <button class="primary block" :disabled="!name.trim() || (mode === 'join' && !roomCode.trim())" @click="submit">
+      <button class="primary block" :disabled="!playerName || (mode === 'join' && !roomCode.trim())" @click="submit">
         {{ mode === "create" ? "Создать комнату" : "Войти в комнату" }}
       </button>
+    </section>
+
+    <section v-if="auth.user && friends.incoming.length" class="lobby-card lobby-requests">
+      <h4 class="pstats-group-title">Заявки в друзья · {{ friends.incoming.length }}</h4>
+      <FriendRequests />
     </section>
   </div>
 </template>

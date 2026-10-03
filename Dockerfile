@@ -13,7 +13,11 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN useradd -m -r appuser && mkdir /app && chown -R appuser /app
+# /app/data holds the SQLite database (accounts); docker-compose mounts a
+# named volume there, which inherits this directory's owner on first use
+ENV BRIDGE_DB_PATH=/app/data/bridge.db
+
+RUN useradd -m -r appuser && mkdir -p /app/data && chown -R appuser /app
 WORKDIR /app
 
 RUN pip install --upgrade pip

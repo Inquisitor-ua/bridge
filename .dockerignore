@@ -29,3 +29,6 @@ pw_shots/
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# Local SQLite database
+data/

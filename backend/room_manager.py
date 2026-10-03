@@ -48,12 +48,18 @@ class Room:
                 return p
         return None
 
-    def add_player(self, name: str) -> Player:
+    def add_player(
+        self, name: str, user_id: int | None = None, avatar_url: str | None = None, username: str | None = None,
+    ) -> Player:
         if len(self.players) >= MAX_PLAYERS:
             raise GameError("комната уже заполнена")
         if self.engine is not None:
             raise GameError("игра уже началась")
-        p = Player(id=str(uuid.uuid4()), name=name[:24] or "Игрок")
+        if user_id is not None and any(p.user_id == user_id for p in self.players):
+            raise GameError("вы уже в этой комнате")
+        p = Player(
+            id=str(uuid.uuid4()), name=name[:24] or "Игрок", user_id=user_id, avatar_url=avatar_url, username=username,
+        )
         self.players.append(p)
         return p
 
@@ -118,7 +124,9 @@ class Room:
             "room": self.code,
             "host_id": self.host_id,
             "started": self.engine is not None,
-            "lobby_players": [{"id": p.id, "name": p.name} for p in self.players],
+            "lobby_players": [
+                {"id": p.id, "name": p.name, "avatar_url": p.avatar_url, "username": p.username} for p in self.players
+            ],
         }
         if self.engine is not None:
             base.update(self.engine.state_for(viewer_id))
@@ -133,22 +141,27 @@ class RoomManager:
     def __init__(self) -> None:
         self.rooms: dict[str, Room] = {}
 
-    def create_room(self, host_name: str) -> tuple[Room, Player]:
+    def create_room(
+        self, host_name: str, user_id: int | None = None, avatar_url: str | None = None, username: str | None = None,
+    ) -> tuple[Room, Player]:
         code = _gen_room_code()
         while code in self.rooms:
             code = _gen_room_code()
         # host_id assigned after the player object exists
         room = Room(code=code, host_id="")
-        player = room.add_player(host_name)
+        player = room.add_player(host_name, user_id, avatar_url, username)
         room.host_id = player.id
         self.rooms[code] = room
         return room, player
 
-    def join_room(self, code: str, name: str) -> tuple[Room, Player]:
+    def join_room(
+        self, code: str, name: str, user_id: int | None = None, avatar_url: str | None = None,
+        username: str | None = None,
+    ) -> tuple[Room, Player]:
         room = self.rooms.get(code.upper())
         if room is None:
             raise GameError("комната не найдена")
-        player = room.add_player(name)
+        player = room.add_player(name, user_id, avatar_url, username)
         return room, player
 
     def get_room(self, code: str) -> Room | None:

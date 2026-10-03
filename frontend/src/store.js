@@ -71,7 +71,17 @@ function send(payload) {
   }
 }
 
+// other modules (friends, invites) subscribe to server message types here
+// instead of growing handleMessage; returns an unsubscribe function
+const listeners = {};
+
+export function onMessage(type, fn) {
+  (listeners[type] ||= new Set()).add(fn);
+  return () => listeners[type].delete(fn);
+}
+
 function handleMessage(msg) {
+  for (const fn of listeners[msg.type] || []) fn(msg);
   if (msg.type === "joined") {
     state.room = msg.room;
     state.playerId = msg.player_id;
@@ -140,6 +150,17 @@ function reconnectNow() {
   connect();
 }
 
+// After logging in or out: the server reads the auth cookie only during the
+// WebSocket handshake, so open a fresh socket (the saved session rejoins the
+// room, if any).
+export function reconnectSocket() {
+  const old = socket;
+  socket = null;
+  state.connected = false;
+  if (old) old.close();
+  connect();
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") reconnectNow();
 });
@@ -191,6 +212,10 @@ export function voteRematch() {
 
 export function sendEmote(emoji) {
   send({ type: "emote", emoji });
+}
+
+export function inviteFriend(username) {
+  send({ type: "invite_friend", username });
 }
 
 export function leaveRoom() {

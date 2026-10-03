@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from . import auth, db, friends, presence, stats
 from .engine import GameError
 from .room_manager import RoomManager, parse_cards
+
+db.init_db()
 
 app = FastAPI(title="Bridge")
 app.add_middleware(
@@ -18,10 +22,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+app.include_router(stats.router)
+app.include_router(friends.router)
+
 manager = RoomManager()
 
 
+INVITE_COOLDOWN = 15.0  # seconds between two invites from one user to the same friend
+invite_sent_at: dict[tuple[int, int], float] = {}
+
+
+async def notify_friends(user_id: int) -> None:
+    """A user came online or went offline: their friends' lists show that."""
+    for fid in friends.friend_ids(user_id):
+        await presence.send(fid, friends.CHANGED)
+
+
+def player_identity(token: str | None, fallback_name: str) -> tuple[str, int | None, str | None, str | None]:
+    """Name, account id, avatar and login for a player joining a room: a
+    logged-in user plays under their profile, a guest under whatever they
+    typed."""
+    user = auth.user_by_token(token)
+    if user is None:
+        return fallback_name, None, None, None
+    return user["display_name"], user["id"], auth.avatar_url(user), user["username"]
+
+
 async def broadcast_room(room) -> None:
+    # every state change ends in a broadcast, so this is the one place that
+    # sees a game finish, however it finished (last round, players leaving)
+    stats.record_game(room.engine)
     stale = []
     # snapshot: a socket may be added/removed by another connection while we
     # await a send below
@@ -52,6 +83,12 @@ async def broadcast_emote(room, player_id: str, emoji: str) -> None:
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
+    # the auth cookie comes with the handshake; the client reconnects after
+    # logging in or out, so it never goes stale within one socket
+    auth_token = websocket.cookies.get(auth.COOKIE_NAME)
+    account = auth.user_by_token(auth_token)
+    if account is not None and presence.add(account["id"], websocket):
+        await notify_friends(account["id"])
     room = None
     player = None
 
@@ -62,7 +99,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
             try:
                 if mtype == "create_room":
-                    room, player = manager.create_room(msg.get("name", "Игрок"))
+                    room, player = manager.create_room(*player_identity(auth_token, msg.get("name", "Игрок")))
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -70,7 +107,11 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     await broadcast_room(room)
 
                 elif mtype == "join_room":
-                    room, player = manager.join_room(msg.get("room", ""), msg.get("name", "Игрок"))
+                    room, player = manager.join_room(msg.get("room", ""), *player_identity(auth_token, msg.get("name", "Игрок")))
+                    if player.user_id is not None:
+                        # they answered: whoever invited them may call them again at once
+                        for key in [k for k in invite_sent_at if k[1] == player.user_id]:
+                            del invite_sent_at[key]
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -83,6 +124,11 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                         await websocket.send_json({"type": "error", "message": "не удалось переподключиться"})
                         continue
                     room, player = result
+                    if player.user_id is not None:
+                        # pick up an avatar changed while away from the room
+                        user = auth.user_by_token(auth_token)
+                        if user is not None and user["id"] == player.user_id:
+                            player.avatar_url = auth.avatar_url(user)
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -144,6 +190,33 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     room.vote_rematch(player.id)
                     await broadcast_room(room)
 
+                elif mtype == "invite_friend":
+                    if room is None or player is None:
+                        raise GameError("вы не в комнате")
+                    if room.engine is not None:
+                        raise GameError("игра уже началась")
+                    me = auth.user_by_token(auth_token)
+                    if me is None or me["id"] != player.user_id:
+                        raise GameError("приглашать друзей можно только из аккаунта")
+                    friend = friends.friend_by_username(me["id"], str(msg.get("username", "")))
+                    if friend is None:
+                        raise GameError("этого игрока нет у вас в друзьях")
+                    if any(p.user_id == friend["id"] for p in room.players):
+                        raise GameError("друг уже в комнате")
+                    if not presence.is_online(friend["id"]):
+                        raise GameError("друг сейчас не в сети")
+                    key = (me["id"], friend["id"])
+                    now = time.monotonic()
+                    if now - invite_sent_at.get(key, -INVITE_COOLDOWN) < INVITE_COOLDOWN:
+                        raise GameError("приглашение уже отправлено, подождите немного")
+                    invite_sent_at[key] = now
+                    await presence.send(friend["id"], {
+                        "type": "invite",
+                        "room": room.code,
+                        "from": {"name": player.name, "username": player.username, "avatar_url": player.avatar_url},
+                    })
+                    await websocket.send_json({"type": "invite_sent", "username": friend["username"]})
+
                 elif mtype == "emote":
                     if room is None or player is None:
                         raise GameError("вы не в комнате")
@@ -172,12 +245,15 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             room.sockets.pop(player.id, None)
             player.connected = False
             await broadcast_room(room)
+    finally:
+        if account is not None and presence.remove(account["id"], websocket):
+            await notify_friends(account["id"])
 
 
 # In production (Docker) the built frontend is served by this same process, so
-# one container handles both the page and /ws. Mounted last so the /ws route
-# above takes priority. In dev the folder usually doesn't exist and Vite serves
-# the frontend instead.
+# one container handles both the page and /ws. Mounted last so the /ws and
+# /api routes above take priority. In dev the folder usually doesn't exist and
+# Vite serves the frontend instead.
 STATIC_DIR = Path(os.environ.get("BRIDGE_STATIC_DIR", Path(__file__).resolve().parent.parent / "frontend" / "dist"))
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

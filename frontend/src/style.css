@@ -656,6 +656,10 @@ button.ghost:hover:not(:disabled) {
   box-shadow: 0 0 0 3px rgba(200, 169, 106, 0.16);
 }
 .player-chip.eliminated { opacity: 0.4; }
+.player-chip.clickable { cursor: pointer; }
+.player-chip.clickable:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.player-chip.clickable.turn:hover { border-color: var(--gold); }
+.player-chip.clickable:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* emotes: a bubble that pops over the sender's avatar for a few seconds */
 .scoreboard-wrap { position: relative; margin: 12px 0; }
@@ -1320,7 +1324,9 @@ button.ghost:hover:not(:disabled) {
 }
 .standings-place { width: 22px; font-family: var(--font-serif); font-size: 1.3rem; color: var(--muted); }
 .standings-list li.winner .standings-place { color: var(--gold); }
-.standings-name { flex: 1; font-weight: 600; }
+.standings-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.standings-avatar { width: 34px; height: 34px; font-size: 0.95rem; }
+.standings-list li.winner .standings-avatar { border-color: var(--gold-line); }
 .standings-score { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-2); min-width: 3ch; text-align: right; }
 .standings-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .standings-actions button { flex: 1 1 160px; }
@@ -1473,7 +1479,8 @@ button.ghost:hover:not(:disabled) {
 .rules-modal li { color: var(--ink-2); font-size: 0.88rem; line-height: 1.55; }
 .rules-modal p { margin: 0; }
 .rules-modal b { color: var(--gold-2); }
-.rules-close {
+.rules-close,
+.modal-close {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -1486,7 +1493,8 @@ button.ghost:hover:not(:disabled) {
   background: transparent;
   border-color: transparent;
 }
-.rules-close:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
+.rules-close:hover:not(:disabled),
+.modal-close:hover:not(:disabled) { color: var(--ink); background: var(--surface-2); }
 .rules-section {
   margin: 22px 0 10px;
   font-size: 0.7rem;
@@ -1588,8 +1596,10 @@ button.ghost:hover:not(:disabled) {
 }
 .rs-score-row.me { border-color: var(--gold-line); }
 .rs-score-row.winner { background: linear-gradient(90deg, rgba(200, 169, 106, 0.1), transparent 70%); }
-.rs-name { font-weight: 600; overflow-wrap: anywhere; }
-.rs-crown { color: var(--gold); margin-right: 4px; }
+.rs-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rs-avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+.rs-score-row.winner .rs-avatar { border-color: var(--gold-line); }
+.rs-crown { color: var(--gold); margin-right: -4px; }
 .rs-you {
   font-size: 0.62rem;
   font-weight: 600;
@@ -1708,6 +1718,387 @@ button.ghost:hover:not(:disabled) {
 .rs-note { margin: 0; color: var(--muted); font-size: 0.88rem; }
 
 /* =====================================================================
+   Accounts: header button, login modal, profile page
+   ===================================================================== */
+.user-btn { gap: 8px; padding-left: 4px; max-width: 200px; }
+.user-btn-avatar { width: 24px; height: 24px; font-size: 0.8rem; color: var(--gold-2); border-color: var(--gold-line); }
+.user-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* an avatar with a picture: the image fills the circle. No overflow:hidden
+   on the avatar itself -- at the table the connection dot and emote bubbles
+   stick out of it */
+.avatar.has-image { background: var(--bg-raised); }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.auth-backdrop { z-index: 300; }
+.modal.auth-modal {
+  position: relative;
+  width: min(100%, 400px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+.auth-modal h3 { margin: 0; }
+.auth-modal .rs-kicker { margin-bottom: -10px; }
+.auth-modal .primary { margin-top: 4px; height: 48px; }
+.auth-error { margin: 0; font-size: 0.84rem; color: var(--danger); }
+
+.lobby-as {
+  margin: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.lobby-as b { margin-left: 0.35em; color: var(--ink); font-weight: 600; }
+
+.profile { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 16px 0 48px; }
+.profile-back { align-self: flex-start; }
+.profile-card {
+  width: min(100%, 520px);
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+.profile-head { display: flex; align-items: center; gap: 20px; }
+.profile-avatar { width: 76px; height: 76px; font-size: 2.2rem; color: var(--gold-2); border-color: var(--gold-line); background: var(--gold-soft); }
+.profile-ident { flex: 1; min-width: 0; }
+/* your own avatar is a button: hover / focus reveals a camera */
+button.avatar-edit {
+  position: relative;
+  flex: none;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+}
+button.avatar-edit:active:not(:disabled) { transform: scale(0.97); }
+button.avatar-edit:disabled { opacity: 1; cursor: progress; }
+.avatar-edit-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: rgba(5, 7, 6, 0.55);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.avatar-edit:hover .avatar-edit-overlay,
+.avatar-edit:focus-visible .avatar-edit-overlay,
+.avatar-edit.busy .avatar-edit-overlay { opacity: 1; }
+.avatar-edit.busy .avatar-edit-overlay svg { animation: avatarPulse 1s ease-in-out infinite alternate; }
+@keyframes avatarPulse { from { opacity: 0.35; } to { opacity: 1; } }
+.profile-avatar-error { margin-top: 12px; }
+.profile-password {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.profile-password .pstats-group-title { margin: 0; }
+.profile-notice {
+  margin: 20px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid rgba(143, 191, 159, 0.3);
+}
+.profile-name {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.profile-username { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.profile-muted { margin: 0; color: var(--muted); }
+.profile-edit { display: flex; flex-direction: column; gap: 10px; }
+.profile-edit-actions { display: flex; gap: 8px; }
+.profile-facts {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+.profile-facts dt {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.profile-facts dd { margin: 6px 0 0; color: var(--ink); font-size: 0.95rem; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+/* friends: header button, window, request / friend rows, invites */
+.friends-btn { gap: 7px; }
+.friends-btn .btn-count { background: var(--gold); color: var(--gold-ink); font-weight: 700; }
+.friends-backdrop { z-index: 300; }
+.modal.friends-modal {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: left;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.friends-modal h3 { margin-bottom: 18px; }
+.friends-add { display: flex; flex-direction: column; gap: 8px; }
+.friends-add-row { display: flex; gap: 8px; }
+.friends-add-row input { flex: 1; min-width: 0; }
+.friends-add-row button { height: 48px; flex: none; }
+.friends-notice { margin: 0; font-size: 0.84rem; color: var(--success); }
+/* .friends-modal prefix: outranks the later .pstats-group-title margin */
+.friends-modal .friends-section { margin: 24px 0 10px; }
+.friends-empty { font-size: 0.88rem; line-height: 1.5; }
+
+.friend-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.friend-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+button.friend-who {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: inherit;
+  white-space: normal;
+  justify-content: flex-start;
+}
+button.friend-who:hover .friend-name { color: var(--gold-2); }
+.friend-avatar { width: 36px; height: 36px; font-size: 0.95rem; }
+/* online: a green dot on the avatar, like the connection dot at the table */
+.friend-avatar.online::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg);
+}
+.friend-names { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.friend-name { font-weight: 600; font-size: 0.92rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.2s; }
+.friend-login { font-size: 0.76rem; font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-online { color: var(--success); }
+.friend-actions { display: flex; gap: 6px; flex: none; }
+.friend-error { margin-top: 10px; }
+
+.lobby-requests { gap: 12px; }
+.lobby-requests .pstats-group-title { margin: 0; }
+.lobby-requests .primary { margin-top: 0; height: 32px; }
+
+.invite-friends { margin: -8px 0 24px; text-align: left; }
+.invite-friends .friend-row.offline { opacity: 0.55; }
+.invite-empty { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+.invite-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 400;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 440px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.invite-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gold-line);
+  background: linear-gradient(180deg, #1a201e, var(--modal));
+  box-shadow: var(--shadow-2);
+}
+.invite-text { font-size: 0.9rem; color: var(--ink-2); line-height: 1.4; }
+.invite-text b { color: var(--ink); }
+.invite-room { margin-left: 4px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold-2); }
+.invite-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.invite-actions button { flex: 1; }
+.toast-enter-active, .toast-leave-active { transition: opacity 0.25s, transform 0.25s var(--ease-smooth); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+
+/* mini profile opened from the table; above the in-game prompts */
+.player-card-backdrop { z-index: 300; }
+.modal.player-card { position: relative; width: min(100%, 400px); }
+.player-card-avatar { width: 84px; height: 84px; margin: 4px auto 0; font-size: 2.3rem; color: var(--gold-2); border-color: var(--gold-line); }
+.modal .player-card-name { margin: 14px 0 4px; overflow-wrap: anywhere; }
+.player-card-sub { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.player-card .auth-error,
+.player-card-loading { margin: 22px 0 0; }
+.player-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 22px; text-align: left; }
+.player-card-stats .kpi { padding: 12px; }
+.player-card-stats .kpi-value { font-size: 1.4rem; }
+.player-card-open { margin-top: 20px; }
+.player-card-friend:not(:empty) { margin-top: 20px; }
+
+/* someone else's profile / mini profile: where the two of you stand */
+.friend-button { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.friend-tag { height: 32px; padding: 0 14px; font-size: 0.72rem; }
+.friend-button-error { flex-basis: 100%; margin: 0; font-size: 0.8rem; }
+
+/* profile statistics */
+.pstats-title {
+  margin: 0 0 18px;
+  font-family: var(--font-serif);
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.pstats-empty { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.kpi-label { font-size: 0.74rem; color: var(--muted); }
+.kpi-value { font-size: 1.7rem; font-weight: 600; line-height: 1.15; color: var(--ink); }
+.kpi-note { font-size: 0.72rem; color: var(--muted); }
+.meter {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  overflow: hidden;
+}
+.meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--gold); }
+
+.pstats-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+.pstats-group-title {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.pstats-list { margin: 0; }
+.pstats-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.pstats-item:last-child { border-bottom: none; }
+.pstats-item dt { color: var(--ink-2); }
+.pstats-item dd { margin: 0; color: var(--ink); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pstats-note { display: block; font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+
+.pstats-recent-title { margin-top: 26px; }
+.recent-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.recent-game {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.recent-place {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  line-height: 1;
+}
+.recent-place-num { font-size: 1.15rem; font-weight: 700; color: var(--ink-2); }
+.recent-place-of { margin-top: 3px; font-size: 0.6rem; color: var(--muted); }
+.recent-game.won .recent-place { border-color: var(--gold-line); background: var(--gold-soft); }
+.recent-game.won .recent-place-num { color: var(--gold-2); }
+.recent-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recent-head { display: flex; align-items: baseline; gap: 10px; }
+.recent-result { font-weight: 600; font-size: 0.9rem; color: var(--ink); }
+.recent-game.won .recent-result { color: var(--gold-2); }
+.recent-date { font-size: 0.74rem; color: var(--muted); }
+.recent-meta, .recent-opponents { font-size: 0.76rem; color: var(--muted); }
+.recent-opponents { overflow-wrap: anywhere; }
+.recent-score { font-size: 1rem; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+button.link-btn {
+  display: inline;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+button.link-btn:hover:not(:disabled) { color: var(--gold-2); text-decoration-color: var(--gold-line); }
+
+button.ghost.danger-text { color: var(--danger); }
+button.ghost.danger-text:hover:not(:disabled) { color: var(--danger); background: var(--danger-soft); border-color: rgba(212, 121, 108, 0.35); }
+
+/* =====================================================================
    Responsive
    ===================================================================== */
 @media (max-width: 640px) {
@@ -1746,6 +2137,19 @@ button.ghost:hover:not(:disabled) {
   .emote-bubble { inset: -6px; font-size: 1.55rem; }
   .player-chip .emote-btn { width: 30px; height: 30px; }
   .modal.rules-modal { padding: 24px 18px 20px; }
+  .header-menu .user-btn { max-width: none; }
+  .friend-row { flex-wrap: wrap; }
+  .friend-actions { width: 100%; }
+  .friend-actions button { flex: 1; }
+  .invite-friends .friend-row { flex-wrap: nowrap; }
+  .invite-friends .friend-actions { width: auto; }
+  .profile-card { padding: 22px 18px; }
+  .profile-head { gap: 14px; }
+  .profile-avatar { width: 60px; height: 60px; font-size: 1.7rem; }
+  .profile-name { font-size: 1.7rem; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .pstats-groups { grid-template-columns: 1fr; gap: 18px; }
+  .recent-game { gap: 12px; padding-right: 12px; }
   .rules-card-row { grid-template-columns: 52px 1fr; gap: 10px; }
   .rules-card-pic { --card-w: 30px; }
   .rules-card-pic + .rules-card-pic { margin-left: -23px; }

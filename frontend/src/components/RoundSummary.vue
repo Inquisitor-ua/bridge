@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { state, continueRound, leaveRoom } from "../store.js";
+import UserAvatar from "./UserAvatar.vue";
 
 const props = defineProps({
   summary: { type: Object, required: true },
@@ -124,6 +125,7 @@ function goHome() {
           :class="{ me: r.id === state.playerId, winner: r.id === summary.player_id && summary.reason !== 'bridge' }"
         >
           <div class="rs-name">
+            <UserAvatar :name="r.name" :src="r.avatar_url" class="rs-avatar" />
             <span v-if="r.id === summary.player_id && summary.reason !== 'bridge'" class="rs-crown">♛</span>
             {{ r.name }}
             <span v-if="r.id === state.playerId" class="rs-you">вы</span>
