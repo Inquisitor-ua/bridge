@@ -127,7 +127,7 @@ function goHome() {
           <div class="rs-name">
             <UserAvatar :name="r.name" :src="r.avatar_url" class="rs-avatar" />
             <span v-if="r.id === summary.player_id && summary.reason !== 'bridge'" class="rs-crown">♛</span>
-            {{ r.name }}
+            <span class="rs-player-name" :title="r.name">{{ r.name }}</span>
             <span v-if="r.id === state.playerId" class="rs-you">вы</span>
           </div>
           <div class="rs-hand">

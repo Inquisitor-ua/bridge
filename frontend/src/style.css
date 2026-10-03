@@ -1586,7 +1586,7 @@ button.ghost:hover:not(:disabled) {
 .rs-scores { display: flex; flex-direction: column; gap: 6px; }
 .rs-score-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) 2fr auto auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: 11px 14px;
@@ -1596,8 +1596,9 @@ button.ghost:hover:not(:disabled) {
 }
 .rs-score-row.me { border-color: var(--gold-line); }
 .rs-score-row.winner { background: linear-gradient(90deg, rgba(200, 169, 106, 0.1), transparent 70%); }
-.rs-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
-.rs-avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+.rs-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+.rs-player-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-avatar { width: 28px; height: 28px; font-size: 0.8rem; flex-shrink: 0; }
 .rs-score-row.winner .rs-avatar { border-color: var(--gold-line); }
 .rs-crown { color: var(--gold); margin-right: -4px; }
 .rs-you {
@@ -1607,6 +1608,8 @@ button.ghost:hover:not(:disabled) {
   text-transform: uppercase;
   color: var(--gold);
   margin-left: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .rs-hand { display: flex; flex-wrap: wrap; gap: 4px; }
 .rs-card {
