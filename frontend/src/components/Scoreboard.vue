@@ -60,7 +60,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePoint
         @click="openCard(p)"
         @keydown.enter.space.prevent="openCard(p)"
       >
-        <UserAvatar :name="p.name" :src="p.avatar_url" :class="{ off: !p.connected }">
+        <UserAvatar :name="p.name" :src="p.avatar_url" :bot="!!p.bot_level" :class="{ off: !p.connected }">
           <!-- the emote covers the sender's own avatar, so nothing on the table is hidden -->
           <Transition name="emote">
             <span v-if="state.emotes[p.id]" :key="state.emotes[p.id].id" class="emote-bubble">{{ state.emotes[p.id].emoji }}</span>

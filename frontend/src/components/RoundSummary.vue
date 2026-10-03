@@ -125,7 +125,7 @@ function goHome() {
           :class="{ me: r.id === state.playerId, winner: r.id === summary.player_id && summary.reason !== 'bridge' }"
         >
           <div class="rs-name">
-            <UserAvatar :name="r.name" :src="r.avatar_url" class="rs-avatar" />
+            <UserAvatar :name="r.name" :src="r.avatar_url" :bot="!!r.bot_level" class="rs-avatar" />
             <span v-if="r.id === summary.player_id && summary.reason !== 'bridge'" class="rs-crown">♛</span>
             <span class="rs-player-name" :title="r.name">{{ r.name }}</span>
             <span v-if="r.id === state.playerId" class="rs-you">вы</span>

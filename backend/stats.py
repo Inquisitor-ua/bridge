@@ -36,6 +36,10 @@ def record_game(engine: Engine | None) -> None:
     # a single round was scored (also keeps "join, leave, free win" out)
     if engine.rounds_completed == 0 or not any(p.user_id for p in engine.players):
         return
+    # games against the computer stay out of the profiles: wins over an easy
+    # bot would be free to farm
+    if any(p.is_bot for p in engine.players):
+        return
 
     place_of = {row["id"]: i + 1 for i, row in enumerate(engine.standings or [])}
     with db.connect() as conn:

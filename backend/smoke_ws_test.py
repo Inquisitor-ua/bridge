@@ -1,7 +1,10 @@
 """End-to-end smoke test over the actual WebSocket endpoint (two simulated
 players): create room, join, start game, and play whatever the host's first
-legal move is. Run with `python -m backend.smoke_ws_test`.
+legal move is. Then a game against a bot, played until the bot has moved on
+its own. Run with `python -m backend.smoke_ws_test`.
 """
+import re
+
 from fastapi.testclient import TestClient
 
 from .main import app
@@ -50,5 +53,51 @@ def main():
     print("\nWebSocket smoke test passed.")
 
 
+BOT_MOVE = re.compile(r"^Бот \S+ (кладёт|берёт|пропускает|назначает)")
+
+
+def bot_game():
+    client = TestClient(app)
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "create_bot_game", "name": "Human", "level": "easy", "bots": 1})
+        joined = ws.receive_json()
+        assert joined["type"] == "joined", joined
+        me = joined["player_id"]
+        # play along (simplest legal moves) until the bot has made a move itself
+        for _ in range(200):
+            st = ws.receive_json()
+            if st["type"] != "state":
+                continue
+            assert st["started"] and len(st["players"]) == 2
+            assert [p["bot_level"] for p in st["players"]] == [None, "easy"]
+            bot_moves = [line for line in st["log"] if BOT_MOVE.match(line)]
+            if bot_moves:
+                print("bot moved:", bot_moves[0])
+                break
+            prompt = st["prompt"]
+            if prompt and prompt["player_id"] == me:
+                ws.send_json({
+                    "suit": {"type": "declare_suit", "suit": "hearts"},
+                    "bridge": {"type": "declare_bridge", "accept": False},
+                    "jack_end": {"type": "jack_end_choice", "choice": "penalty"},
+                }[prompt["kind"]])
+            elif st["awaiting_continue"] and me not in st["ready_ids"]:
+                ws.send_json({"type": "continue_round"})
+            elif st["turn_player_id"] == me and not prompt:
+                if st["can_draw"] and not st["has_played_this_turn"]:
+                    ws.send_json({"type": "draw_card"})
+                elif st["legal_cards"] and not st["can_pass"]:
+                    ws.send_json({"type": "play_cards", "cards": [st["legal_cards"][0]]})
+                else:
+                    ws.send_json({"type": "pass_turn"})
+        else:
+            raise AssertionError("the bot never moved")
+        ws.send_json({"type": "create_bot_game", "name": "Human", "level": "godlike", "bots": 1})
+        err = ws.receive_json()
+        assert err["type"] == "error", err
+    print("Bot game over WebSocket passed.")
+
+
 if __name__ == "__main__":
     main()
+    bot_game()

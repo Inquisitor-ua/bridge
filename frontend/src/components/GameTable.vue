@@ -643,7 +643,7 @@ function snapBack(originRect) {
       <ol class="standings-list">
         <li v-for="(s, i) in game.standings" :key="s.id" :class="{ winner: i === 0 && !s.eliminated, me: s.id === state.playerId }">
           <span class="standings-place">{{ i + 1 }}</span>
-          <UserAvatar :name="s.name" :src="s.avatar_url" class="standings-avatar" />
+          <UserAvatar :name="s.name" :src="s.avatar_url" :bot="!!s.bot_level" class="standings-avatar" />
           <span class="standings-name">
             {{ s.name }}
             <span v-if="s.id === state.playerId" class="you">вы</span>

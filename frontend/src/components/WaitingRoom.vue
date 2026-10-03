@@ -37,7 +37,7 @@ function copyCode() {
 
       <TransitionGroup tag="ul" name="seat" class="seat-list">
         <li v-for="p in players" :key="p.id" class="seat" :class="{ me: p.id === state.playerId }">
-          <UserAvatar :name="p.name" :src="p.avatar_url" />
+          <UserAvatar :name="p.name" :src="p.avatar_url" :bot="!!p.bot_level" />
           <span class="seat-name">{{ p.name }}</span>
           <span v-if="p.id === state.hostId" class="tag gold">хост</span>
           <span v-if="p.id === state.playerId" class="tag">вы</span>

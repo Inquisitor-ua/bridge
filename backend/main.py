@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+import random
 import time
 from pathlib import Path
 
@@ -8,7 +11,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, db, friends, presence, stats
+from . import auth, bot, db, friends, presence, stats
 from .engine import GameError
 from .room_manager import RoomManager, parse_cards
 
@@ -27,6 +30,7 @@ app.include_router(stats.router)
 app.include_router(friends.router)
 
 manager = RoomManager()
+log = logging.getLogger(__name__)
 
 
 INVITE_COOLDOWN = 15.0  # seconds between two invites from one user to the same friend
@@ -66,6 +70,62 @@ async def broadcast_room(room) -> None:
         p = room.player(pid)
         if p:
             p.connected = False
+    wake_bots(room)
+
+
+# pauses before a computer player moves, so people can follow what it did
+BOT_MOVE_DELAY = (0.9, 1.6)  # seconds, a random value in between
+BOT_PROMPT_DELAY = 1.0  # naming a suit, Bridge, the jack ending
+BOT_READY_DELAY = 1.2  # "next round" / "new game"
+BOT_DEAL_DELAY = 3.5  # a fresh deal: the client is still animating it
+
+
+def bot_delay(room) -> float:
+    eng = room.engine
+    if eng.game_over or eng.awaiting_continue:
+        return BOT_READY_DELAY
+    deal = (eng, eng.round_number)
+    if room.bot_seen_deal != deal:
+        room.bot_seen_deal = deal
+        return BOT_DEAL_DELAY
+    if eng.prompt is not None:
+        return BOT_PROMPT_DELAY
+    return random.uniform(*BOT_MOVE_DELAY)
+
+
+def wake_bots(room) -> None:
+    """Start moving the room's computer players if the game waits on one.
+    Called after every broadcast; does nothing while the bots are already
+    running or nobody is at the table to watch them."""
+    if room.bot_task is not None and not room.bot_task.done():
+        return
+    if not room.sockets or room.bot_to_act() is None:
+        return
+    room.bot_task = asyncio.create_task(drive_bots(room))
+
+
+async def drive_bots(room) -> None:
+    try:
+        while manager.get_room(room.code) is room and room.sockets:
+            player = room.bot_to_act()
+            if player is None:
+                return
+            await asyncio.sleep(bot_delay(room))
+            # a person may have acted (or left) during the pause
+            if manager.get_room(room.code) is not room or room.bot_to_act() is not player:
+                continue
+            action = None
+            eng = room.engine
+            if not (eng.game_over or eng.awaiting_continue):
+                # thinking happens on a copy in a worker thread: the hard
+                # bot plays rounds ahead, which shouldn't hold up other rooms
+                action = await asyncio.to_thread(bot.decide, *bot.snapshot(eng, player))
+                if room.engine is not eng or room.bot_to_act() is not player:
+                    continue
+            room.bot_step(player, action)
+            await broadcast_room(room)
+    except Exception:
+        log.exception("bot crashed in room %s", room.code)
 
 
 MAX_EMOTE_LEN = 16
@@ -100,6 +160,20 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             try:
                 if mtype == "create_room":
                     room, player = manager.create_room(*player_identity(auth_token, msg.get("name", "Игрок")))
+                    room.sockets[player.id] = websocket
+                    await websocket.send_json({
+                        "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
+                    })
+                    await broadcast_room(room)
+
+                elif mtype == "create_bot_game":
+                    try:
+                        bot_count = int(msg.get("bots", 1))
+                    except (TypeError, ValueError):
+                        raise GameError("неверное число ботов")
+                    room, player = manager.create_bot_room(
+                        *player_identity(auth_token, msg.get("name", "Игрок")), str(msg.get("level", "")), bot_count,
+                    )
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,

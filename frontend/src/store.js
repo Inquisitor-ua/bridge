@@ -170,6 +170,11 @@ export function createRoom(name) {
   send({ type: "create_room", name });
 }
 
+// a game against the computer: the server seats the bots and deals at once
+export function createBotGame(name, level, bots) {
+  send({ type: "create_bot_game", name, level, bots });
+}
+
 export function joinRoom(room, name) {
   send({ type: "join_room", room, name });
 }

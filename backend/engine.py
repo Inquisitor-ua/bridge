@@ -29,6 +29,11 @@ class Player:
     user_id: int | None = None  # account id; None for a guest
     avatar_url: str | None = None  # the account's picture, if it has one
     username: str | None = None  # account login, for opening the profile
+    bot_level: str | None = None  # "easy" | "medium" | "hard" for a computer player (see bot.py)
+
+    @property
+    def is_bot(self) -> bool:
+        return self.bot_level is not None
 
 
 class GameError(Exception):
@@ -55,6 +60,9 @@ class Engine:
         self.turn_index: int = 0
         self.pending_draw: int = 0
         self.pending_skip: int = 0
+        # cards each pending skip makes its victim draw, in the order the
+        # skips land: 2 for an 8, 0 for an Ace. Every 8 hits its own opponent.
+        self.skip_draws: list[int] = []
         self.skip_source: int | None = None  # turn_index of whoever played the pending skips
         self.reshuffle_count: int = 0
         self.round_active: bool = False
@@ -189,12 +197,6 @@ class Engine:
             idx = self._next_index(idx)
         return idx == self.turn_index
 
-    def _jack_may_continue(self) -> bool:
-        """Mid-turn, a Jack may only be added on top of an 8 or an Ace -- on
-        any other rank the continuation is locked to that rank alone."""
-        top = self.top_card()
-        return top is not None and top.rank in (8, 14)
-
     def _fresh_lead_ok(self, card: Card) -> bool:
         return card.is_jack or card.rank == self.effective_rank() or card.suit == self.effective_suit()
 
@@ -205,7 +207,9 @@ class Engine:
         or suit (or a Jack), plus every other card of that same rank in hand
         (which may be dumped alongside it without limit). Once a turn is
         already open on a non-six top, only the rank already established this
-        turn (or a Jack) may be added -- no switching ranks by suit match."""
+        turn may be added -- no switching ranks by suit match, and no Jack:
+        a Jack is a move of its own, so on top of one's own 8s / Aces it is
+        only possible once their skips hand the turn straight back."""
         top = self.top_card()
         if top is None:
             return []
@@ -214,12 +218,7 @@ class Engine:
             by_rank.setdefault(c.rank, []).append(c)
 
         if self._continuing_same_rank_only() and not self._turn_returns_to_current():
-            sets = []
-            if 11 in by_rank and self._jack_may_continue():
-                sets.append(by_rank[11])
-            if top.rank in by_rank:
-                sets.append(by_rank[top.rank])
-            return sets
+            return [by_rank[top.rank]] if top.rank in by_rank else []
 
         eff_suit = self.effective_suit()
         eff_rank = self.effective_rank()
@@ -240,7 +239,7 @@ class Engine:
         """Cards that could individually be played right now: each one, on
         its own, matches the effective top by rank or suit, or is a Jack --
         unless a turn is already open on a non-six top, in which case only
-        the rank already established this turn (or a Jack) qualifies. Unlike
+        the rank already established this turn qualifies. Unlike
         legal_sets, this does NOT include a same-rank sibling just because
         some other card of that rank happens to match -- e.g. with a King on
         top and 8-hearts + 8-clubs in hand, only 8-hearts can lead (8-clubs
@@ -249,7 +248,7 @@ class Engine:
         if top is None:
             return []
         if self._continuing_same_rank_only() and not self._turn_returns_to_current():
-            return [c for c in hand if c.rank == top.rank or (c.is_jack and self._jack_may_continue())]
+            return [c for c in hand if c.rank == top.rank]
         eff_suit = self.effective_suit()
         eff_rank = self.effective_rank()
         return [c for c in hand if c.is_jack or c.rank == eff_rank or c.suit == eff_suit]
@@ -289,6 +288,7 @@ class Engine:
         self.jack_run = 0
         self.pending_draw = 0
         self.pending_skip = 0
+        self.skip_draws = []
         self.skip_source = None
         self.reshuffle_count = 0
         self.round_active = True
@@ -387,17 +387,18 @@ class Engine:
         if self.pending_draw > 0:
             n = self.pending_draw
             self.pending_draw = 0
-            drawn = [self._draw_one(player) for _ in range(n)]
-            drawn = [c for c in drawn if c]
-            self._stat(player, "penalty_drawn", len(drawn))
-            self._say(f"{player.name} берёт {len(drawn)} карт(ы) (штраф).")
+            self._penalty_draw(player, n)
 
         if self.pending_skip > 0:
             # skips only ever hit opponents: when the rotation comes back
             # round to whoever played the 8s/Aces, it simply passes over
-            # them without using up a skip
+            # them without using up a skip. An 8's two cards go with its
+            # skip, so two 8s hit two different opponents.
             if self.turn_index != self.skip_source:
                 self.pending_skip -= 1
+                n = self.skip_draws.pop(0) if self.skip_draws else 0
+                if n:
+                    self._penalty_draw(player, n)
                 self._stat(player, "turns_skipped")
                 self._say(f"{player.name} пропускает ход.")
             self._advance_turn()
@@ -528,8 +529,9 @@ class Engine:
         # once the real match has been led. But once a turn is already open
         # on a non-six top, a new rank can no longer be led just because it
         # happens to match the last card's suit -- only more of the rank
-        # already established this turn is allowed (plus a Jack on an 8 or
-        # Ace); switching rank requires ending the turn first.
+        # already established this turn is allowed; switching rank (a Jack
+        # too -- it is a move of its own) requires ending the turn first,
+        # unless the turn comes straight back anyway (handled first below).
         lead = cards[0]
         top = self.top_card()
         if (self._continuing_same_rank_only() and lead.rank != top.rank
@@ -543,7 +545,7 @@ class Engine:
             self._advance_turn()
             self._begin_turn()
         elif self._continuing_same_rank_only():
-            if lead.rank != top.rank and not (lead.is_jack and self._jack_may_continue()):
+            if lead.rank != top.rank:
                 raise GameError(f"{lead.label} нельзя доложить поверх {top.label} — в этом ходу можно класть только карты номинала {RANK_NAMES[top.rank]}, или закончить ход")
         elif not self._fresh_lead_ok(lead):
             raise GameError(f"{lead.label} нельзя положить на {top.label} — нужна карта в масть, в номинал, или валет")
@@ -573,9 +575,9 @@ class Engine:
 
         self.jack_run = 0
         self.declared_suit = None
-        draw_before, skip_before = self.pending_draw, self.pending_skip
+        draw_before, skip_before = self.pending_draw + sum(self.skip_draws), self.pending_skip
         self._apply_play_effects(cards)
-        self._stat(player, "penalty_dealt", self.pending_draw - draw_before)
+        self._stat(player, "penalty_dealt", self.pending_draw + sum(self.skip_draws) - draw_before)
         self._stat(player, "skips_dealt", self.pending_skip - skip_before)
 
         if rank == 6:
@@ -719,18 +721,21 @@ class Engine:
     # ---------- effects ----------
 
     def _apply_play_effects(self, cards: list[Card]) -> None:
-        """Every special card played this turn contributes its own effect;
-        contributions from the whole chain sum together for the next player."""
+        """Every special card played this turn contributes its own effect.
+        Draws from 7s and Q♠ sum together for the next player; each 8 or Ace
+        is a skip of its own that lands on the next opponent in turn (an 8
+        also makes that opponent draw 2)."""
         for c in cards:
             if c.rank == 7:
                 self.pending_draw += 1
             elif c.rank == 8:
-                self.pending_draw += 2
                 self.pending_skip += 1
+                self.skip_draws.append(2)
             elif c.is_queen_of_spades:
                 self.pending_draw += 5
             elif c.rank == 14:
                 self.pending_skip += 1
+                self.skip_draws.append(0)
         if self.pending_skip > 0:
             self.skip_source = self.turn_index
             # 6, 9, 10, K and a plain Q carry no special effect
@@ -763,17 +768,32 @@ class Engine:
 
     def _deliver_final_penalty(self) -> None:
         """The round ended (player went out or declared Bridge) with 7/8/Q♠
-        penalties still pending: the next player takes the forced draw before
-        hands are scored (the skip no longer matters)."""
-        if self.pending_draw > 0:
-            victim = self.players[self._next_index(self.turn_index)]
-            n = self.pending_draw
-            drawn = [self._draw_one(victim) for _ in range(n)]
-            drawn = [c for c in drawn if c]
-            self._stat(victim, "penalty_drawn", len(drawn))
-            self._say(f"{victim.name} берёт {len(drawn)} карт(ы) (штраф).")
+        penalties still pending: they are taken before hands are scored, by
+        the same players they would have hit (the skips themselves no longer
+        matter). 7s and Q♠ go to the next player; each 8 to the next opponent
+        in turn, passing over whoever played it, as in _begin_turn."""
+        source = self.turn_index
+        nxt = self._next_index(source)
+        if self.pending_draw > 0 and nxt != source:
+            self._penalty_draw(self.players[nxt], self.pending_draw)
+        idx = nxt
+        for n in self.skip_draws:
+            if idx == source:
+                break  # nobody else is left in the game
+            if n:
+                self._penalty_draw(self.players[idx], n)
+            idx = self._next_index(idx)
+            if idx == source:
+                idx = self._next_index(idx)
         self.pending_draw = 0
         self.pending_skip = 0
+        self.skip_draws = []
+
+    def _penalty_draw(self, player: Player, n: int) -> None:
+        drawn = [self._draw_one(player) for _ in range(n)]
+        drawn = [c for c in drawn if c]
+        self._stat(player, "penalty_drawn", len(drawn))
+        self._say(f"{player.name} берёт {len(drawn)} карт(ы) (штраф).")
 
     def _finalize_scores(self, exclude_winner: bool, extra_multiplier: int) -> None:
         winner_ids = set()
@@ -825,6 +845,7 @@ class Engine:
                 "id": p.id,
                 "name": p.name,
                 "avatar_url": p.avatar_url,
+                "bot_level": p.bot_level,
                 "hand": [c.to_dict() for c in p.hand],
                 "points": raw - before,
                 "score_before": before,
@@ -890,7 +911,10 @@ class Engine:
         # survivors first; then whoever lasted longer; ties by score
         ranked = sorted(self.players, key=lambda p: (p.eliminated, -self.eliminated_in.get(p.id, 0), p.score))
         self.standings = [
-            {"id": p.id, "name": p.name, "avatar_url": p.avatar_url, "score": p.score, "eliminated": p.eliminated}
+            {
+                "id": p.id, "name": p.name, "avatar_url": p.avatar_url, "bot_level": p.bot_level,
+                "score": p.score, "eliminated": p.eliminated,
+            }
             for p in ranked
         ]
         if ranked:
@@ -907,6 +931,7 @@ class Engine:
                     "name": p.name,
                     "avatar_url": p.avatar_url,
                     "username": p.username,
+                    "bot_level": p.bot_level,
                     "hand_count": len(p.hand),
                     "score": p.score,
                     "eliminated": p.eliminated,

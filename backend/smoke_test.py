@@ -2,6 +2,8 @@
 check turn order, forced draws/skips, wild jacks and round scoring. Not a
 pytest suite -- just a quick sanity harness run with `python -m backend.smoke_test`.
 """
+from collections import defaultdict
+
 from . import engine as engine_mod
 from .cards import Card
 from .engine import Engine, GameError, Player
@@ -434,9 +436,10 @@ def test_jack_always_playable_regardless_of_top():
     print("jack always playable regardless of top: OK")
 
 
-def test_jack_mid_turn_only_on_eight_or_ace():
-    """Once a turn is open, a Jack may be added only on top of an 8 or Ace;
-    on any other rank only more of that same rank is allowed."""
+def test_no_jack_mid_turn():
+    """Once a turn is open, only more of the same rank may be added. A Jack is
+    a move of its own: not on a King, and not on one's own 8 either while its
+    skip doesn't bring the turn back (3 players: the 8 skips P1, P2 is next)."""
     eng, players = make_engine(3)
     p0 = players[0]
     eng.table = [Card(13, "hearts")]
@@ -458,9 +461,13 @@ def test_jack_mid_turn_only_on_eight_or_ace():
     eng.round_active = True
     p0.hand = [Card(8, "hearts"), Card(11, "diamonds"), Card(9, "spades")]
     eng.play_cards(p0.id, [Card(8, "hearts")])
-    assert Card(11, "diamonds") in eng.leadable_cards(p0.hand)
-    eng.play_cards(p0.id, [Card(11, "diamonds")])
-    print("jack mid-turn only on eight or ace: OK")
+    assert Card(11, "diamonds") not in eng.leadable_cards(p0.hand)
+    try:
+        eng.play_cards(p0.id, [Card(11, "diamonds")])
+        raise AssertionError("a Jack must not be added on one's own 8 while the turn moves on")
+    except GameError:
+        pass
+    print("no jack mid-turn: OK")
 
 
 def test_dealer_selected_by_highest_score():
@@ -648,6 +655,7 @@ def test_round_end_waits_for_everyone_to_continue():
     eng.table = [Card(9, "hearts")]
     eng.turn_index = 0
     eng.pending_draw = eng.pending_skip = 0
+    eng.skip_draws = []
     eng.drawn_this_turn = eng.played_this_turn = False
     # the random opener may have been a Jack, leaving the dealer's suit
     # prompt open, which would block the scripted play below
@@ -763,6 +771,197 @@ def test_last_card_jack_asks_suit_immediately():
     print("last-card jack asks suit immediately: OK")
 
 
+# ---------- several 8s / Aces: each one hits its own opponent ----------
+
+FILLER = [Card(r, s) for r in (9, 10, 13) for s in ("hearts", "diamonds", "clubs", "spades")]
+
+
+def table_with(n, top, p0_hand, deck_size=20):
+    """An n-player game mid-round: p0 to move onto `top`, every opponent
+    holding two filler cards, a deck of filler to draw penalties from."""
+    eng, players = make_engine(n)
+    eng.table = [top]
+    eng.turn_index = 0
+    eng.round_active = True
+    eng.deck = [FILLER[i % len(FILLER)] for i in range(deck_size)]
+    players[0].hand = list(p0_hand)
+    for p in players[1:]:
+        p.hand = [Card(9, "spades"), Card(10, "spades")]
+    eng.round_stats = {p.id: defaultdict(int) for p in players}  # counters checked by some tests
+    return eng, players
+
+
+def hand_sizes(players):
+    return [len(p.hand) for p in players]
+
+
+def test_two_eights_three_players_each_opponent_draws_two():
+    eights = [Card(8, "hearts"), Card(8, "clubs")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), eights + [Card(13, "clubs"), Card(10, "diamonds")])
+    eng.play_cards(p0.id, eights)
+    assert not eng.can_pass(), "both skips land on opponents, so the turn comes straight back"
+    # leading a fresh card closes the turn: penalties land, p0 plays on
+    eng.play_cards(p0.id, [Card(13, "clubs")])
+    assert hand_sizes([p1, p2]) == [4, 4], f"each opponent draws 2, got {hand_sizes([p1, p2])}"
+    assert eng.current_player() is p0
+    assert eng.round_stats[p0.id]["penalty_dealt"] == 4
+    assert eng.round_stats[p1.id]["penalty_drawn"] == 2 and eng.round_stats[p2.id]["penalty_drawn"] == 2
+    assert eng.round_stats[p1.id]["turns_skipped"] == 1 and eng.round_stats[p2.id]["turns_skipped"] == 1
+    assert "P1 берёт 2 карт(ы) (штраф)." in eng.log and "P2 берёт 2 карт(ы) (штраф)." in eng.log
+    print("two 8s, 3 players: P1 +2 skip, P2 +2 skip, P0 moves: OK")
+
+
+def test_two_aces_three_players_skip_both_no_draws():
+    aces = [Card(14, "hearts"), Card(14, "clubs")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), aces + [Card(10, "clubs"), Card(13, "diamonds")])
+    eng.play_cards(p0.id, aces)
+    eng.draw_card(p0.id)  # drawing closes the turn too
+    assert hand_sizes([p1, p2]) == [2, 2]
+    assert eng.current_player() is p0
+    assert eng.log.count("P1 пропускает ход.") == 1 and eng.log.count("P2 пропускает ход.") == 1
+    print("two aces, 3 players: P1 and P2 skip, nobody draws, P0 moves: OK")
+
+
+def test_three_eights_three_players_wrap_round():
+    eights = [Card(8, "hearts"), Card(8, "clubs"), Card(8, "spades")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), eights + [Card(13, "diamonds")])
+    eng.play_cards(p0.id, eights)
+    eng.pass_turn(p0.id)  # P1, P2, P1 skip: P2 is next, so ending the turn is allowed
+    assert hand_sizes([p1, p2]) == [6, 4], f"P1 is hit twice, P2 once, got {hand_sizes([p1, p2])}"
+    assert eng.current_player() is p2
+    print("three 8s, 3 players: P1 +4, P2 +2, P2 moves: OK")
+
+
+def test_two_eights_four_players():
+    eights = [Card(8, "hearts"), Card(8, "clubs")]
+    eng, (p0, p1, p2, p3) = table_with(4, Card(9, "hearts"), eights + [Card(13, "diamonds")])
+    eng.play_cards(p0.id, eights)
+    eng.pass_turn(p0.id)
+    assert hand_sizes([p1, p2, p3]) == [4, 4, 2]
+    assert eng.current_player() is p3
+    print("two 8s, 4 players: P1 +2, P2 +2, P3 moves: OK")
+
+
+def test_two_eights_two_players_same_opponent_twice():
+    eights = [Card(8, "hearts"), Card(8, "clubs")]
+    eng, (p0, p1) = table_with(2, Card(9, "hearts"), eights + [Card(13, "clubs")])
+    eng.play_cards(p0.id, eights)
+    eng.play_cards(p0.id, [Card(13, "clubs")])
+    assert len(p1.hand) == 6, f"the only opponent takes both 8s: +4, got {len(p1.hand)}"
+    assert eng.round_stats[p1.id]["turns_skipped"] == 2
+    assert eng.current_player() is p0
+    print("two 8s, 2 players: P1 +4 and skips twice: OK")
+
+
+def test_eights_skip_over_eliminated_player():
+    eights = [Card(8, "hearts"), Card(8, "clubs")]
+    eng, (p0, p1, p2, p3) = table_with(4, Card(9, "hearts"), eights + [Card(13, "clubs")])
+    p1.eliminated = True
+    p1.hand = []
+    eng.play_cards(p0.id, eights)
+    eng.play_cards(p0.id, [Card(13, "clubs")])
+    assert hand_sizes([p1, p2, p3]) == [0, 4, 4]
+    assert eng.current_player() is p0
+    print("two 8s with P1 out of the game: P2 +2, P3 +2: OK")
+
+
+def test_eights_then_jack_on_top():
+    """Two 8s in a 3-player game hand the turn straight back, so a jack laid
+    on them is already p0's next turn: the 8s land first (P1 +2, P2 +2), then
+    the jack's suit is named and play goes on to P1 as after any jack."""
+    hand = [Card(8, "hearts"), Card(8, "clubs"), Card(11, "spades"), Card(13, "diamonds")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), hand)
+    eng.play_cards(p0.id, hand[:2])
+    eng.play_cards(p0.id, [Card(11, "spades")])
+    assert hand_sizes([p1, p2]) == [4, 4], "the 8s land before the jack"
+    eng.pass_turn(p0.id)
+    eng.declare_suit(p0.id, "diamonds")
+    assert hand_sizes([p1, p2]) == [4, 4]
+    assert eng.current_player() is p1 and eng.declared_suit == "diamonds"
+
+    # 4 players: two 8s skip P1 and P2, P3 moves next, so the turn doesn't
+    # come back and a jack (a move of its own) can't follow; three 8s skip
+    # all three opponents, the turn is p0's again and the jack is its lead
+    eng, (p0, p1, p2, p3) = table_with(4, Card(9, "hearts"), hand)
+    eng.play_cards(p0.id, hand[:2])
+    assert Card(11, "spades") not in eng.leadable_cards(p0.hand)
+    try:
+        eng.play_cards(p0.id, [Card(11, "spades")])
+        raise AssertionError("two 8s in a 4-player game: no jack after them")
+    except GameError:
+        pass
+    eng.pass_turn(p0.id)
+    assert hand_sizes([p1, p2, p3]) == [4, 4, 2] and eng.current_player() is p3
+
+    three = [Card(8, "hearts"), Card(8, "clubs"), Card(8, "diamonds")]
+    eng, (p0, p1, p2, p3) = table_with(4, Card(9, "hearts"), three + [Card(11, "spades"), Card(13, "diamonds")])
+    eng.play_cards(p0.id, three)
+    eng.play_cards(p0.id, [Card(11, "spades")])
+    assert hand_sizes([p1, p2, p3]) == [4, 4, 4], "the 8s land before the jack"
+    eng.pass_turn(p0.id)
+    eng.declare_suit(p0.id, "diamonds")
+    assert eng.current_player() is p1
+    print("8s then a jack: only when the 8s bring the turn back: OK")
+
+
+def test_six_covered_by_eights():
+    hand = [Card(6, "hearts"), Card(8, "hearts"), Card(8, "clubs"), Card(13, "clubs")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), hand)
+    eng.play_cards(p0.id, [Card(6, "hearts")])
+    eng.play_cards(p0.id, [Card(8, "hearts"), Card(8, "clubs")])
+    eng.play_cards(p0.id, [Card(13, "clubs")])
+    assert hand_sizes([p1, p2]) == [4, 4]
+    assert eng.current_player() is p0
+    print("six covered by two 8s: P1 +2, P2 +2: OK")
+
+
+def test_sevens_and_queen_of_spades_all_go_to_next_player():
+    sevens = [Card(7, "hearts"), Card(7, "clubs")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), sevens + [Card(13, "diamonds")])
+    eng.play_cards(p0.id, sevens)
+    eng.pass_turn(p0.id)
+    assert hand_sizes([p1, p2]) == [4, 2] and eng.current_player() is p1, "7s don't skip: P1 +2 and moves"
+
+    queens = [Card(12, "spades"), Card(12, "hearts")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "spades"), queens + [Card(13, "diamonds")])
+    eng.play_cards(p0.id, queens)
+    eng.pass_turn(p0.id)
+    assert hand_sizes([p1, p2]) == [7, 2] and eng.current_player() is p1, "Q♠ +5 to P1, a plain Q nothing"
+    print("7s and Q♠ still all go to the next player: OK")
+
+
+def test_going_out_on_eights_penalizes_each_opponent():
+    eights = [Card(8, "hearts"), Card(8, "clubs")]
+    eng, (p0, p1, p2) = table_with(3, Card(9, "hearts"), eights)
+    eng.play_cards(p0.id, eights)
+    assert not eng.round_active
+    summary = {row["id"]: len(row["hand"]) for row in eng.round_summary["players"]}
+    assert summary[p1.id] == 4 and summary[p2.id] == 4, f"each opponent takes 2 before scoring, got {summary}"
+    assert eng.pending_skip == 0 and eng.skip_draws == []
+
+    eng, (p0, p1) = table_with(2, Card(9, "hearts"), eights)
+    eng.play_cards(p0.id, eights)
+    summary = {row["id"]: len(row["hand"]) for row in eng.round_summary["players"]}
+    assert summary[p1.id] == 6, f"the only opponent takes both: +4, got {summary}"
+    print("going out on two 8s: every 8 still delivers its 2 cards: OK")
+
+
+def test_eight_opener_three_players():
+    eng, (p0, p1, p2) = make_engine(3)
+    p0.score, p1.score, p2.score = 0, 50, 0  # p1 deals
+    dealer = [Card(9, "clubs"), Card(10, "clubs"), Card(13, "spades"), Card(9, "spades")]
+    # no hearts, 8s or jacks: nothing the dealer could add to the 8♥ opener
+    others = [Card(r, s) for r in (7, 9, 10, 12, 13, 14) for s in ("diamonds", "clubs", "spades")]
+    others = [c for c in others if c not in dealer]
+    pop_order = others[:5] + dealer + others[5:10] + [Card(8, "hearts")] + others[10:]
+    with with_fixed_deck(pop_order):
+        eng.start_round()
+    assert eng.top_card() == Card(8, "hearts")
+    assert hand_sizes([p0, p1, p2]) == [5, 4, 7], f"only P2 (next after the dealer) draws 2, got {hand_sizes([p0, p1, p2])}"
+    assert eng.current_player() is p0, "P2 skips, P0 moves"
+    print("8 opener, 3 players: P2 +2 and skips, P0 moves: OK")
+
+
 if __name__ == "__main__":
     test_basic_flow()
     test_seven_forces_draw()
@@ -782,7 +981,7 @@ if __name__ == "__main__":
     test_jack_always_ends_the_turn()
     test_pass_requires_drawing_or_playing_first()
     test_jack_always_playable_regardless_of_top()
-    test_jack_mid_turn_only_on_eight_or_ace()
+    test_no_jack_mid_turn()
     test_dealer_selected_by_highest_score()
     test_six_opener_obligates_the_dealer()
     test_jack_opener_prompts_dealer_then_passes_on()
@@ -798,4 +997,15 @@ if __name__ == "__main__":
     test_last_card_jack_asks_suit_immediately()
     test_round_end_waits_for_everyone_to_continue()
     test_leaver_does_not_block_continue()
+    test_two_eights_three_players_each_opponent_draws_two()
+    test_two_aces_three_players_skip_both_no_draws()
+    test_three_eights_three_players_wrap_round()
+    test_two_eights_four_players()
+    test_two_eights_two_players_same_opponent_twice()
+    test_eights_skip_over_eliminated_player()
+    test_eights_then_jack_on_top()
+    test_six_covered_by_eights()
+    test_sevens_and_queen_of_spades_all_go_to_next_player()
+    test_going_out_on_eights_penalizes_each_opponent()
+    test_eight_opener_three_players()
     print("\nAll smoke tests passed.")
