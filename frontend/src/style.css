@@ -1860,6 +1860,117 @@ button.avatar-edit:disabled { opacity: 1; cursor: progress; }
 }
 .profile-facts dd { margin: 6px 0 0; color: var(--ink); font-size: 0.95rem; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+/* friends: header button, window, request / friend rows, invites */
+.friends-btn { gap: 7px; }
+.friends-btn .btn-count { background: var(--gold); color: var(--gold-ink); font-weight: 700; }
+.friends-backdrop { z-index: 300; }
+.modal.friends-modal {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: left;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.friends-modal h3 { margin-bottom: 18px; }
+.friends-add { display: flex; flex-direction: column; gap: 8px; }
+.friends-add-row { display: flex; gap: 8px; }
+.friends-add-row input { flex: 1; min-width: 0; }
+.friends-add-row button { height: 48px; flex: none; }
+.friends-notice { margin: 0; font-size: 0.84rem; color: var(--success); }
+/* .friends-modal prefix: outranks the later .pstats-group-title margin */
+.friends-modal .friends-section { margin: 24px 0 10px; }
+.friends-empty { font-size: 0.88rem; line-height: 1.5; }
+
+.friend-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.friend-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+button.friend-who {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: inherit;
+  white-space: normal;
+  justify-content: flex-start;
+}
+button.friend-who:hover .friend-name { color: var(--gold-2); }
+.friend-avatar { width: 36px; height: 36px; font-size: 0.95rem; }
+/* online: a green dot on the avatar, like the connection dot at the table */
+.friend-avatar.online::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg);
+}
+.friend-names { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.friend-name { font-weight: 600; font-size: 0.92rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.2s; }
+.friend-login { font-size: 0.76rem; font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-online { color: var(--success); }
+.friend-actions { display: flex; gap: 6px; flex: none; }
+.friend-error { margin-top: 10px; }
+
+.lobby-requests { gap: 12px; }
+.lobby-requests .pstats-group-title { margin: 0; }
+.lobby-requests .primary { margin-top: 0; height: 32px; }
+
+.invite-friends { margin: -8px 0 24px; text-align: left; }
+.invite-friends .friend-row.offline { opacity: 0.55; }
+.invite-empty { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+.invite-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 400;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 440px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.invite-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gold-line);
+  background: linear-gradient(180deg, #1a201e, var(--modal));
+  box-shadow: var(--shadow-2);
+}
+.invite-text { font-size: 0.9rem; color: var(--ink-2); line-height: 1.4; }
+.invite-text b { color: var(--ink); }
+.invite-room { margin-left: 4px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold-2); }
+.invite-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.invite-actions button { flex: 1; }
+.toast-enter-active, .toast-leave-active { transition: opacity 0.25s, transform 0.25s var(--ease-smooth); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+
 /* mini profile opened from the table; above the in-game prompts */
 .player-card-backdrop { z-index: 300; }
 .modal.player-card { position: relative; width: min(100%, 400px); }
@@ -2021,6 +2132,11 @@ button.ghost.danger-text:hover:not(:disabled) { color: var(--danger); background
   .player-chip .emote-btn { width: 30px; height: 30px; }
   .modal.rules-modal { padding: 24px 18px 20px; }
   .header-menu .user-btn { max-width: none; }
+  .friend-row { flex-wrap: wrap; }
+  .friend-actions { width: 100%; }
+  .friend-actions button { flex: 1; }
+  .invite-friends .friend-row { flex-wrap: nowrap; }
+  .invite-friends .friend-actions { width: auto; }
   .profile-card { padding: 22px 18px; }
   .profile-head { gap: 14px; }
   .profile-avatar { width: 60px; height: 60px; font-size: 1.7rem; }

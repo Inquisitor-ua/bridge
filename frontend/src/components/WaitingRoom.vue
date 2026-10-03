@@ -2,6 +2,8 @@
 import { ref, computed } from "vue";
 import { state, startGame, leaveRoom } from "../store.js";
 import UserAvatar from "./UserAvatar.vue";
+import InviteFriends from "./InviteFriends.vue";
+import { auth } from "../auth.js";
 
 const MAX_PLAYERS = 6;
 
@@ -45,6 +47,8 @@ function copyCode() {
           <span class="seat-name">Свободное место</span>
         </li>
       </TransitionGroup>
+
+      <InviteFriends v-if="auth.user" />
 
       <div class="waiting-actions">
         <button v-if="isHost" class="primary block" :disabled="!canStart" @click="startGame">

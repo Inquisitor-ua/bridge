@@ -62,6 +62,26 @@ npm run dev
 - Профиль на фронте открывается по адресу `#/u/<логин>` (мини-роутер
   в `frontend/src/router.js`). Hash-адреса не требуют fallback от StaticFiles.
 
+## Друзья
+
+- Таблица `friendships` хранит одну строку на пару пользователей: заявку
+  (`pending`, от `requester_id` к `addressee_id`) или дружбу (`accepted`,
+  работает в обе стороны). REST в `backend/friends.py`: `GET /api/friends`
+  (друзья с флагом `online`, входящие и исходящие заявки),
+  `POST /api/friends/requests` (по логину; встречная заявка принимается
+  сразу), `POST /api/friends/requests/{username}/accept`,
+  `DELETE /api/friends/requests/{username}` (отклонить или отменить),
+  `DELETE /api/friends/{username}`.
+- `backend/presence.py` помнит, какие аккаунты сейчас подключены по
+  WebSocket (сокет регистрируется при handshake по cookie). Через него
+  сервер шлёт `friends_changed`, когда меняется заявка, дружба или статус
+  «в сети», и открытые экраны обновляются сразу, без опроса.
+- Приглашение в комнату — WebSocket-сообщение `invite_friend`. Работает
+  только из зала ожидания, только для друга в сети, который ещё не в этой
+  комнате. Одному другу не чаще раза в 15 секунд; пауза сбрасывается, когда
+  приглашённый заходит в комнату. Друг получает `invite`, на фронте это
+  всплывающее окно с кнопками «Принять» и «Отклонить» (живёт 60 секунд).
+
 ## Статистика
 
 Движок считает счётчики каждого раунда (`round_stats`) и суммирует их за
@@ -262,14 +282,19 @@ backend/
   auth.py           аккаунты: регистрация, вход, сессии, /api/*
   db.py             SQLite-схема и подключение
   stats.py          запись итогов партии, агрегаты для профиля
+  friends.py        друзья и заявки, /api/friends/*
+  presence.py       кто из аккаунтов сейчас в сети, доставка сообщений им
   smoke_test.py      быстрые проверки движка (python -m backend.smoke_test)
   smoke_ws_test.py   проверка полного цикла через WebSocket API
 frontend/
   src/store.js              WebSocket-клиент и реактивное состояние
   src/auth.js               клиент /api, текущий пользователь
   src/router.js             hash-роутер (страница профиля)
+  src/friends.js            друзья, заявки и приглашения в комнату
   src/components/           Lobby, WaitingRoom, GameTable, PlayingCard, промпты,
-                            AuthModal, ProfilePage, ProfileStats
+                            AuthModal, ProfilePage, ProfileStats, PlayerCard,
+                            FriendsModal, FriendRequests, InviteFriends,
+                            InviteToasts
 Dockerfile          сборка фронтенда + рантайм uvicorn
 docker-compose.yml  контейнер bridge-app в сети edge
 ```

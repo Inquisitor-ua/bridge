@@ -9,6 +9,9 @@ import GameTable from "./components/GameTable.vue";
 import RulesModal from "./components/RulesModal.vue";
 import SoundControl from "./components/SoundControl.vue";
 import AuthModal from "./components/AuthModal.vue";
+import FriendsModal from "./components/FriendsModal.vue";
+import InviteToasts from "./components/InviteToasts.vue";
+import { friends } from "./friends.js";
 import ProfilePage from "./components/ProfilePage.vue";
 import UserAvatar from "./components/UserAvatar.vue";
 
@@ -17,6 +20,7 @@ const started = computed(() => inRoom.value && state.game && state.game.started)
 const onProfile = computed(() => route.name === "profile");
 const rulesOpen = ref(false);
 const authOpen = ref(false);
+const friendsOpen = ref(false);
 
 // phone header: the burger dropdown
 const menuOpen = ref(false);
@@ -31,6 +35,11 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePoint
 function openRules() {
   menuOpen.value = false;
   rulesOpen.value = true;
+}
+
+function openFriends() {
+  menuOpen.value = false;
+  friendsOpen.value = true;
 }
 
 function openAuth() {
@@ -87,6 +96,15 @@ function onLeave() {
           </button>
           <button v-if="inRoom" class="ghost small" @click="onLeave">Покинуть игру</button>
           <template v-if="auth.ready">
+            <button v-if="auth.user" class="ghost small friends-btn" title="Друзья" @click="openFriends">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9" cy="8.5" r="3.2" />
+                <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+                <path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17 14.2a5.5 5.5 0 0 1 3.5 4.8" />
+              </svg>
+              <span class="friends-btn-label">Друзья</span>
+              <span v-if="friends.incoming.length" class="btn-count" :aria-label="`заявок: ${friends.incoming.length}`">{{ friends.incoming.length }}</span>
+            </button>
             <button v-if="auth.user" class="ghost small user-btn" :title="auth.user.display_name" @click="openOwnProfile">
               <UserAvatar :name="auth.user.display_name" :src="auth.user.avatar_url" class="user-btn-avatar" />
               <span class="user-btn-name">{{ auth.user.display_name }}</span>
@@ -110,5 +128,7 @@ function onLeave() {
 
     <RulesModal v-if="rulesOpen" @close="rulesOpen = false" />
     <AuthModal v-if="authOpen" @close="authOpen = false" />
+    <FriendsModal v-if="friendsOpen && auth.user" @close="friendsOpen = false" />
+    <InviteToasts v-if="auth.user" />
   </div>
 </template>

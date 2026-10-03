@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS game_players (
     max_hand      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS game_players_user ON game_players(user_id);
+
+-- one row per pair of users: a pending request from requester to addressee,
+-- or (status = 'accepted') a friendship that works both ways
+CREATE TABLE IF NOT EXISTS friendships (
+    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    addressee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status       TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
+    created_at   INTEGER NOT NULL,
+    PRIMARY KEY (requester_id, addressee_id)
+);
+CREATE INDEX IF NOT EXISTS friendships_addressee ON friendships(addressee_id);
 CREATE INDEX IF NOT EXISTS game_players_game ON game_players(game_id);
 """
 

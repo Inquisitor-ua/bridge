@@ -2,6 +2,8 @@
 import { ref, computed } from "vue";
 import { createRoom, joinRoom } from "../store.js";
 import { auth } from "../auth.js";
+import { friends } from "../friends.js";
+import FriendRequests from "./FriendRequests.vue";
 import PlayingCard from "./PlayingCard.vue";
 
 const name = ref(localStorage.getItem("bridge_name") || "");
@@ -82,6 +84,11 @@ function submit() {
       <button class="primary block" :disabled="!playerName || (mode === 'join' && !roomCode.trim())" @click="submit">
         {{ mode === "create" ? "Создать комнату" : "Войти в комнату" }}
       </button>
+    </section>
+
+    <section v-if="auth.user && friends.incoming.length" class="lobby-card lobby-requests">
+      <h4 class="pstats-group-title">Заявки в друзья · {{ friends.incoming.length }}</h4>
+      <FriendRequests />
     </section>
   </div>
 </template>

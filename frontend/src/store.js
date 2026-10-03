@@ -71,7 +71,17 @@ function send(payload) {
   }
 }
 
+// other modules (friends, invites) subscribe to server message types here
+// instead of growing handleMessage; returns an unsubscribe function
+const listeners = {};
+
+export function onMessage(type, fn) {
+  (listeners[type] ||= new Set()).add(fn);
+  return () => listeners[type].delete(fn);
+}
+
 function handleMessage(msg) {
+  for (const fn of listeners[msg.type] || []) fn(msg);
   if (msg.type === "joined") {
     state.room = msg.room;
     state.playerId = msg.player_id;
@@ -202,6 +212,10 @@ export function voteRematch() {
 
 export function sendEmote(emoji) {
   send({ type: "emote", emoji });
+}
+
+export function inviteFriend(username) {
+  send({ type: "invite_friend", username });
 }
 
 export function leaveRoom() {
