@@ -1716,6 +1716,22 @@ button.ghost:hover:not(:disabled) {
 .user-btn-avatar { width: 24px; height: 24px; font-size: 0.8rem; color: var(--gold-2); border-color: var(--gold-line); }
 .user-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* an avatar with a picture: the image fills the circle */
+.avatar.has-image { overflow: hidden; background: var(--bg-raised); }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .auth-backdrop { z-index: 300; }
 .modal.auth-modal {
   position: relative;
@@ -1757,6 +1773,54 @@ button.ghost:hover:not(:disabled) {
 .profile-head { display: flex; align-items: center; gap: 20px; }
 .profile-avatar { width: 76px; height: 76px; font-size: 2.2rem; color: var(--gold-2); border-color: var(--gold-line); background: var(--gold-soft); }
 .profile-ident { flex: 1; min-width: 0; }
+/* your own avatar is a button: hover / focus reveals a camera */
+button.avatar-edit {
+  position: relative;
+  flex: none;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+}
+button.avatar-edit:active:not(:disabled) { transform: scale(0.97); }
+button.avatar-edit:disabled { opacity: 1; cursor: progress; }
+.avatar-edit-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: rgba(5, 7, 6, 0.55);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.avatar-edit:hover .avatar-edit-overlay,
+.avatar-edit:focus-visible .avatar-edit-overlay,
+.avatar-edit.busy .avatar-edit-overlay { opacity: 1; }
+.avatar-edit.busy .avatar-edit-overlay svg { animation: avatarPulse 1s ease-in-out infinite alternate; }
+@keyframes avatarPulse { from { opacity: 0.35; } to { opacity: 1; } }
+.profile-avatar-error { margin-top: 12px; }
+.profile-password {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.profile-password .pstats-group-title { margin: 0; }
+.profile-notice {
+  margin: 20px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid rgba(143, 191, 159, 0.3);
+}
 .profile-name {
   margin: 0;
   font-family: var(--font-serif);

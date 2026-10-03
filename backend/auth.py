@@ -27,6 +27,8 @@ SESSION_TTL = 60 * 60 * 24 * 30  # 30 days
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,20}$")
 PASSWORD_MIN, PASSWORD_MAX = 6, 128
 DISPLAY_NAME_MAX = 24  # same limit as a player name in a room
+# the client sends a 256x256 picture (tens of KB); the cap only stops abuse
+AVATAR_MAX_BYTES = 512 * 1024
 
 # scrypt from the standard library (OWASP-recommended parameters), so no
 # extra dependency; hashes look like "scrypt$n$r$p$salt$hash"
@@ -142,8 +144,24 @@ class ProfileIn(BaseModel):
     display_name: str
 
 
+class PasswordIn(BaseModel):
+    old_password: str
+    new_password: str
+
+
 def public_user(row: sqlite3.Row) -> dict:
-    return {"username": row["username"], "display_name": row["display_name"], "created_at": row["created_at"]}
+    version = row["avatar_version"]
+    return {
+        "username": row["username"],
+        "display_name": row["display_name"],
+        "created_at": row["created_at"],
+        "avatar_url": f"/api/users/{row['username']}/avatar?v={version}" if version else None,
+    }
+
+
+def _check_password_length(password: str) -> None:
+    if not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
+        raise HTTPException(400, f"пароль: от {PASSWORD_MIN} до {PASSWORD_MAX} символов")
 
 
 def _clean_display_name(name: str) -> str:
@@ -174,8 +192,7 @@ def register(body: RegisterIn, request: Request, response: Response) -> dict:
     username = body.username.strip()
     if not USERNAME_RE.match(username):
         raise HTTPException(400, "логин: 3–20 символов, латиница, цифры и _")
-    if not PASSWORD_MIN <= len(body.password) <= PASSWORD_MAX:
-        raise HTTPException(400, f"пароль: от {PASSWORD_MIN} до {PASSWORD_MAX} символов")
+    _check_password_length(body.password)
     display_name = _clean_display_name(body.display_name or username)
 
     try:
@@ -234,6 +251,92 @@ def update_me(body: ProfileIn, request: Request) -> dict:
     with db.connect() as conn:
         conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user["id"]))
         return public_user(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
+
+
+@router.post("/me/password")
+def change_password(body: PasswordIn, request: Request) -> dict:
+    user = current_user(request)
+    # wrong old passwords count like failed logins, per account: a stolen
+    # session shouldn't allow guessing the password at full speed
+    key = f"password:{user['id']}"
+    if failed_logins.blocked(key):
+        raise HTTPException(429, "слишком много попыток, попробуйте через несколько минут")
+    if not verify_password(body.old_password, user["password_hash"]):
+        failed_logins.hit(key)
+        raise HTTPException(400, "старый пароль неверный")
+    _check_password_length(body.new_password)
+    if body.new_password == body.old_password:
+        raise HTTPException(400, "новый пароль совпадает со старым")
+    current = _token_hash(request.cookies.get(COOKIE_NAME, ""))
+    with db.connect() as conn:
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(body.new_password), user["id"]))
+        # log out every other device; this one stays signed in
+        conn.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", (user["id"], current))
+    return {"ok": True}
+
+
+IMAGE_SIGNATURES = [
+    (bytes.fromhex("89504e470d0a1a0a"), "image/png"),
+    (bytes.fromhex("ffd8ff"), "image/jpeg"),
+]
+
+
+def _sniff_image(data: bytes) -> str | None:
+    """Image type from the file's own signature, never from the client's
+    Content-Type. Only raster formats: an SVG could carry a script."""
+    for signature, mime in IMAGE_SIGNATURES:
+        if data.startswith(signature):
+            return mime
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@router.put("/me/avatar")
+async def upload_avatar(request: Request) -> dict:
+    user = current_user(request)
+    if int(request.headers.get("content-length") or 0) > AVATAR_MAX_BYTES:
+        raise HTTPException(413, "картинка слишком большая")
+    data = await request.body()
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(413, "картинка слишком большая")
+    mime = _sniff_image(data)
+    if mime is None:
+        raise HTTPException(400, "нужна картинка PNG, JPEG или WebP")
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO avatars (user_id, image, mime) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET image = excluded.image, mime = excluded.mime",
+            (user["id"], data, mime),
+        )
+        conn.execute("UPDATE users SET avatar_version = avatar_version + 1 WHERE id = ?", (user["id"],))
+        return public_user(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
+
+
+@router.delete("/me/avatar")
+def delete_avatar(request: Request) -> dict:
+    user = current_user(request)
+    with db.connect() as conn:
+        conn.execute("DELETE FROM avatars WHERE user_id = ?", (user["id"],))
+        conn.execute("UPDATE users SET avatar_version = 0 WHERE id = ?", (user["id"],))
+        return public_user(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
+
+
+@router.get("/users/{username}/avatar")
+def get_avatar(username: str) -> Response:
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT a.image, a.mime FROM avatars a JOIN users u ON u.id = a.user_id WHERE u.username = ?",
+            (username,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "аватара нет")
+    # the URL carries ?v=<avatar_version>, so a cached copy never goes stale
+    return Response(
+        row["image"],
+        media_type=row["mime"],
+        headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/users/{username}")

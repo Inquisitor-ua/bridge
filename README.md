@@ -47,8 +47,18 @@ npm run dev
   переподключает сокет, и сохранённая сессия заново заходит в комнату.
 - REST: `POST /api/register`, `/api/login`, `/api/logout`, `GET /api/me`
   (для гостя возвращает `null`), `PATCH /api/me` (смена имени),
-  `GET /api/users/{username}`. Неудачные входы и регистрации ограничены
+  `POST /api/me/password` (старый и новый пароль; остальные сессии аккаунта
+  завершаются, текущая остаётся), `PUT`/`DELETE /api/me/avatar`,
+  `GET /api/users/{username}`, `GET /api/users/{username}/avatar`. Неудачные входы и регистрации ограничены
   по IP, лимиты хранятся в памяти.
+- Аватар: браузер обрезает картинку до квадрата 256×256 и кодирует в WebP
+  (в Safari в JPEG), это `frontend/src/avatarImage.js`. Сервер принимает до
+  512 КБ, тип определяет по сигнатуре файла (PNG, JPEG или WebP; SVG нельзя)
+  и хранит картинку в таблице `avatars`. В URL есть `?v=<avatar_version>`,
+  поэтому картинку можно кешировать навсегда.
+- Новые колонки в существующих таблицах добавляет `COLUMN_MIGRATIONS` в
+  `backend/db.py`, потому что `CREATE TABLE IF NOT EXISTS` старую таблицу
+  не трогает.
 - Профиль на фронте открывается по адресу `#/u/<логин>` (мини-роутер
   в `frontend/src/router.js`). Hash-адреса не требуют fallback от StaticFiles.
 

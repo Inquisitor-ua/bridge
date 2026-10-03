@@ -10,13 +10,13 @@ import RulesModal from "./components/RulesModal.vue";
 import SoundControl from "./components/SoundControl.vue";
 import AuthModal from "./components/AuthModal.vue";
 import ProfilePage from "./components/ProfilePage.vue";
+import UserAvatar from "./components/UserAvatar.vue";
 
 const inRoom = computed(() => !!state.room && !!state.playerId);
 const started = computed(() => inRoom.value && state.game && state.game.started);
 const onProfile = computed(() => route.name === "profile");
 const rulesOpen = ref(false);
 const authOpen = ref(false);
-const userInitial = computed(() => (auth.user?.display_name || "?").charAt(0).toUpperCase());
 
 // phone header: the burger dropdown
 const menuOpen = ref(false);
@@ -88,7 +88,7 @@ function onLeave() {
           <button v-if="inRoom" class="ghost small" @click="onLeave">Покинуть игру</button>
           <template v-if="auth.ready">
             <button v-if="auth.user" class="ghost small user-btn" :title="auth.user.display_name" @click="openOwnProfile">
-              <span class="avatar user-btn-avatar">{{ userInitial }}</span>
+              <UserAvatar :user="auth.user" class="user-btn-avatar" />
               <span class="user-btn-name">{{ auth.user.display_name }}</span>
             </button>
             <button v-else class="ghost small" @click="openAuth">Войти</button>

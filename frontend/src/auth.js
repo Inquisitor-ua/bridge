@@ -62,3 +62,25 @@ export function fetchUser(username) {
 export function fetchUserStats(username) {
   return api("GET", `/users/${encodeURIComponent(username)}/stats`);
 }
+
+export async function uploadAvatar(blob) {
+  const res = await fetch("/api/me/avatar", {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+    credentials: "same-origin",
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "ошибка сервера");
+  auth.user = data;
+  return data;
+}
+
+export async function deleteAvatar() {
+  auth.user = await api("DELETE", "/me/avatar");
+  return auth.user;
+}
+
+export function changePassword(oldPassword, newPassword) {
+  return api("POST", "/me/password", { old_password: oldPassword, new_password: newPassword });
+}

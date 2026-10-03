@@ -21,7 +21,18 @@ CREATE TABLE IF NOT EXISTS users (
     username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
     display_name  TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at    INTEGER NOT NULL
+    created_at    INTEGER NOT NULL,
+    -- bumped on every avatar change; part of the avatar URL so browsers can
+    -- cache it forever; 0 = no avatar
+    avatar_version INTEGER NOT NULL DEFAULT 0
+);
+
+-- profile pictures, already square and small (the browser resizes them
+-- before upload); kept apart from users so listing users stays light
+CREATE TABLE IF NOT EXISTS avatars (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    image   BLOB NOT NULL,
+    mime    TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -85,8 +96,19 @@ def connect() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+# Columns added after a table first shipped: CREATE TABLE IF NOT EXISTS
+# leaves an existing table alone, so older databases get them here.
+COLUMN_MIGRATIONS = [
+    ("users", "avatar_version", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        for table, column, decl in COLUMN_MIGRATIONS:
+            existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
