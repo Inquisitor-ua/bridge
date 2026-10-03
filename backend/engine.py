@@ -941,6 +941,9 @@ class Engine:
             ],
             "your_hand": [c.to_dict() for c in (self.player_by_id(viewer_id).hand if self.player_by_id(viewer_id) else [])],
             "table_top": top.to_dict() if top else None,
+            # the last few cards of the pile (top last), so clients can show
+            # every card of a multi-card play face up as it lands
+            "table_tail": [c.to_dict() for c in self.table[-4:]],
             "declared_suit": self.declared_suit,
             "deck_count": len(self.deck),
             "turn_player_id": self.current_player().id if self.players and self.round_active else None,

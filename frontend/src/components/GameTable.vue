@@ -323,7 +323,7 @@ function flyDraw(playerId, n) {
   }
 }
 
-function flyPlay(playerId, n, newTop, oldTop) {
+function flyPlay(playerId, n, newTop, oldTop, tail) {
   const hand = miniHandEl(playerId);
   const pile = discardEl.value;
   if (!hand || !pile) return;
@@ -331,12 +331,14 @@ function flyPlay(playerId, n, newTop, oldTop) {
   const topChanged = !sameCardOrNull(newTop, oldTop);
   if (topChanged && holdCount++ === 0) heldTop.value = oldTop || null;
   const count = Math.min(n, 4);
+  // the played cards are the end of the pile, in the order they were laid
+  const played = topChanged ? (tail?.length ? tail : [newTop]) : [];
   for (let i = 0; i < count; i++) {
     const last = i === count - 1;
     flights.value.push({
       id: ++flightSeq,
-      // only the top card is known; the ones under it travel face down
-      card: last && topChanged ? newTop : null,
+      // a card the pile no longer shows (reshuffled away) travels face down
+      card: played[played.length - count + i] || null,
       from: miniSlot(hand, -1 - i),
       to,
       width: to.width,
@@ -501,7 +503,7 @@ watch(
       if (p.id === state.playerId || !before.has(p.id)) continue;
       const delta = p.hand_count - before.get(p.id);
       if (delta > 0) flyDraw(p.id, delta);
-      else if (delta < 0) flyPlay(p.id, -delta, nv.table_top, ov.table_top);
+      else if (delta < 0) flyPlay(p.id, -delta, nv.table_top, ov.table_top, nv.table_tail);
     }
   }
 );
