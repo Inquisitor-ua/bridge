@@ -76,6 +76,13 @@ class Engine:
         # between rounds: the next deal starts once every alive player is ready
         self.awaiting_continue: bool = False
         self.ready_ids: set[str] = set()
+        # whole-game bookkeeping for player profiles (see stats.py): the
+        # per-round counters summed over finished rounds, plus round outcomes
+        self.started_at: float = time.time()
+        self.rounds_completed: int = 0
+        self.game_stats: dict[str, dict] = {}  # player id -> totals
+        self.eliminated_in: dict[str, int] = {}  # player id -> round they went out in
+        self.quit_ids: set[str] = set()  # players who left mid-game
 
     # ---------- helpers ----------
 
@@ -672,6 +679,8 @@ class Engine:
         was_current = self.round_active and self.current_player() is player
         player.eliminated = True
         player.connected = False
+        self.eliminated_in[player.id] = self.round_number
+        self.quit_ids.add(player.id)
         self.deck[0:0] = player.hand
         player.hand = []
         self._say(f"{player.name} покидает игру.")
@@ -786,6 +795,7 @@ class Engine:
                 self._say(f"{p.name} набрал(а) ровно {MAX_SCORE} — очки обнулены.")
             elif p.score > MAX_SCORE:
                 p.eliminated = True
+                self.eliminated_in[p.id] = self.round_number
                 self._say(f"{p.name} выбывает из игры с {p.score} очками.")
 
         self._build_round_summary(raw_scores)
@@ -822,6 +832,7 @@ class Engine:
             })
         info = {"reason": None, "player_id": None, "jack_count": 0, "jack_choice": None}
         info.update(self.round_end_info)
+        self._accumulate_game_stats(rows, info)
         self.round_summary = {
             "number": self.round_number,
             **info,
@@ -831,6 +842,29 @@ class Engine:
             "duration_sec": int(time.monotonic() - self.round_started_at) if self.round_started_at else 0,
             "players": rows,
         }
+
+    # counters that keep the biggest value rather than a sum
+    _MAX_STATS = ("biggest_play", "max_hand")
+
+    def _accumulate_game_stats(self, rows: list[dict], info: dict) -> None:
+        self.rounds_completed += 1
+        for row in rows:
+            totals = self.game_stats.setdefault(row["id"], {
+                "rounds_played": 0, "rounds_won": 0, "bridges": 0, "resets": 0,
+            })
+            for key, value in row["stats"].items():
+                if key in self._MAX_STATS:
+                    totals[key] = max(totals.get(key, 0), value)
+                else:
+                    totals[key] = totals.get(key, 0) + value
+            totals["rounds_played"] += 1
+            if info["player_id"] == row["id"]:
+                if info["reason"] in ("out", "jack"):
+                    totals["rounds_won"] += 1
+                elif info["reason"] == "bridge":
+                    totals["bridges"] += 1
+            if row["reset"]:
+                totals["resets"] += 1
 
     def continue_round(self, player_id: str) -> None:
         if not self.awaiting_continue:
@@ -850,7 +884,8 @@ class Engine:
     def _finish_game(self) -> None:
         self.game_over = True
         self.round_active = False
-        ranked = sorted(self.players, key=lambda p: (p.eliminated, p.score))
+        # survivors first; then whoever lasted longer; ties by score
+        ranked = sorted(self.players, key=lambda p: (p.eliminated, -self.eliminated_in.get(p.id, 0), p.score))
         self.standings = [
             {"id": p.id, "name": p.name, "score": p.score, "eliminated": p.eliminated}
             for p in ranked

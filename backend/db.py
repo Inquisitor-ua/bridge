@@ -31,6 +31,45 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+
+-- finished games, written once per game by stats.record_game
+CREATE TABLE IF NOT EXISTS games (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at   INTEGER NOT NULL,
+    finished_at  INTEGER NOT NULL,
+    rounds       INTEGER NOT NULL,
+    player_count INTEGER NOT NULL
+);
+
+-- one row per player of a game; guests too (user_id NULL), so a profile can
+-- list who the opponents were
+CREATE TABLE IF NOT EXISTS game_players (
+    game_id       INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    name          TEXT NOT NULL,
+    place         INTEGER NOT NULL,
+    score         INTEGER NOT NULL,
+    won           INTEGER NOT NULL,
+    eliminated    INTEGER NOT NULL,
+    left_game     INTEGER NOT NULL,
+    rounds_played INTEGER NOT NULL,
+    rounds_won    INTEGER NOT NULL,
+    bridges       INTEGER NOT NULL,
+    resets        INTEGER NOT NULL,
+    turns         INTEGER NOT NULL,
+    cards_played  INTEGER NOT NULL,
+    cards_drawn   INTEGER NOT NULL,
+    penalty_drawn INTEGER NOT NULL,
+    penalty_dealt INTEGER NOT NULL,
+    skips_dealt   INTEGER NOT NULL,
+    turns_skipped INTEGER NOT NULL,
+    jacks_played  INTEGER NOT NULL,
+    sixes_played  INTEGER NOT NULL,
+    biggest_play  INTEGER NOT NULL,
+    max_hand      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS game_players_user ON game_players(user_id);
+CREATE INDEX IF NOT EXISTS game_players_game ON game_players(game_id);
 """
 
 

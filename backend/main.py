@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, db
+from . import auth, db, stats
 from .engine import GameError
 from .room_manager import RoomManager, parse_cards
 
@@ -22,6 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(stats.router)
 
 manager = RoomManager()
 
@@ -36,6 +37,9 @@ def player_identity(token: str | None, fallback_name: str) -> tuple[str, int | N
 
 
 async def broadcast_room(room) -> None:
+    # every state change ends in a broadcast, so this is the one place that
+    # sees a game finish, however it finished (last round, players leaving)
+    stats.record_game(room.engine)
     stale = []
     # snapshot: a socket may be added/removed by another connection while we
     # await a send below

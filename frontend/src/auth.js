@@ -58,3 +58,7 @@ export async function updateProfile(displayName) {
 export function fetchUser(username) {
   return api("GET", `/users/${encodeURIComponent(username)}`);
 }
+
+export function fetchUserStats(username) {
+  return api("GET", `/users/${encodeURIComponent(username)}/stats`);
+}

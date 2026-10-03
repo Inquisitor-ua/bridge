@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, watch } from "vue";
-import { auth, fetchUser, updateProfile, logout } from "../auth.js";
+import { auth, fetchUser, fetchUserStats, updateProfile, logout } from "../auth.js";
 import { route, goHome } from "../router.js";
+import ProfileStats from "./ProfileStats.vue";
 
 const user = ref(null);
+const stats = ref(null);
+const statsError = ref(false);
 const loading = ref(true);
 const notFound = ref(false);
+const loadError = ref("");
 
 const editing = ref(false);
 const nameDraft = ref("");
@@ -25,15 +29,26 @@ const since = computed(() =>
 async function load() {
   loading.value = true;
   notFound.value = false;
+  loadError.value = "";
   editing.value = false;
+  stats.value = null;
+  statsError.value = false;
+  // statistics are secondary: if they fail, the profile still shows
+  const statsReq = fetchUserStats(route.username).catch(() => {
+    statsError.value = true;
+    return null;
+  });
   try {
     user.value = await fetchUser(route.username);
-  } catch {
+  } catch (e) {
     user.value = null;
-    notFound.value = true;
+    // only a 404 means "no such user"; anything else is a connection problem
+    notFound.value = e.status === 404;
+    loadError.value = e.status === 404 ? "" : e.message;
   } finally {
     loading.value = false;
   }
+  stats.value = await statsReq;
 }
 watch(() => route.username, load, { immediate: true });
 
@@ -84,6 +99,12 @@ async function onLogout() {
         <p class="profile-muted">Пользователя «{{ route.username }}» не существует.</p>
       </template>
 
+      <template v-else-if="loadError">
+        <p class="rs-kicker">Профиль</p>
+        <h2 class="profile-name">Не загрузился</h2>
+        <p class="profile-muted">{{ loadError }}. Попробуйте обновить страницу.</p>
+      </template>
+
       <template v-else-if="user">
         <div class="profile-head">
           <span class="avatar profile-avatar">{{ initial }}</span>
@@ -118,6 +139,11 @@ async function onLogout() {
           <button class="ghost small danger-text" @click="onLogout">Выйти из аккаунта</button>
         </div>
       </template>
+    </section>
+
+    <section v-if="!loading && user && (stats || statsError)" class="profile-card">
+      <ProfileStats v-if="stats" :stats="stats" />
+      <p v-else class="profile-muted">Статистику не удалось загрузить. Попробуйте обновить страницу.</p>
     </section>
   </div>
 </template>
