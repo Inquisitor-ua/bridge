@@ -149,13 +149,17 @@ class PasswordIn(BaseModel):
     new_password: str
 
 
-def public_user(row: sqlite3.Row) -> dict:
+def avatar_url(row: sqlite3.Row) -> str | None:
     version = row["avatar_version"]
+    return f"/api/users/{row['username']}/avatar?v={version}" if version else None
+
+
+def public_user(row: sqlite3.Row) -> dict:
     return {
         "username": row["username"],
         "display_name": row["display_name"],
         "created_at": row["created_at"],
-        "avatar_url": f"/api/users/{row['username']}/avatar?v={version}" if version else None,
+        "avatar_url": avatar_url(row),
     }
 
 

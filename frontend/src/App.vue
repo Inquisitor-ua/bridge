@@ -88,7 +88,7 @@ function onLeave() {
           <button v-if="inRoom" class="ghost small" @click="onLeave">Покинуть игру</button>
           <template v-if="auth.ready">
             <button v-if="auth.user" class="ghost small user-btn" :title="auth.user.display_name" @click="openOwnProfile">
-              <UserAvatar :user="auth.user" class="user-btn-avatar" />
+              <UserAvatar :name="auth.user.display_name" :src="auth.user.avatar_url" class="user-btn-avatar" />
               <span class="user-btn-name">{{ auth.user.display_name }}</span>
             </button>
             <button v-else class="ghost small" @click="openAuth">Войти</button>

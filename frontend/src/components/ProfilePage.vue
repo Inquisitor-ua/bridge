@@ -207,7 +207,7 @@ async function onLogout() {
             aria-label="Сменить фото профиля"
             @click="pickAvatar"
           >
-            <UserAvatar :user="user" class="profile-avatar" />
+            <UserAvatar :name="user.display_name" :src="user.avatar_url" class="profile-avatar" />
             <span class="avatar-edit-overlay" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
@@ -215,7 +215,7 @@ async function onLogout() {
               </svg>
             </span>
           </button>
-          <UserAvatar v-else :user="user" class="profile-avatar" />
+          <UserAvatar v-else :name="user.display_name" :src="user.avatar_url" class="profile-avatar" />
           <input
             v-if="isOwn"
             ref="avatarInput"

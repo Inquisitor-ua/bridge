@@ -2,17 +2,20 @@
 import { computed } from "vue";
 
 // a profile picture, or the first letter of the name when there is none;
-// sizing comes from the classes the parent puts on it
+// sizing comes from the classes the parent puts on it. The slot is for
+// overlays that sit on the avatar (emote bubbles at the table).
 const props = defineProps({
-  user: { type: Object, required: true },
+  name: { type: String, default: "" },
+  src: { type: String, default: null },
 });
 
-const initial = computed(() => (props.user.display_name || "?").charAt(0).toUpperCase());
+const initial = computed(() => (props.name || "?").trim().charAt(0).toUpperCase());
 </script>
 
 <template>
-  <span class="avatar" :class="{ 'has-image': !!user.avatar_url }">
-    <img v-if="user.avatar_url" :src="user.avatar_url" alt="" class="avatar-img" />
+  <span class="avatar" :class="{ 'has-image': !!src }">
+    <img v-if="src" :src="src" alt="" class="avatar-img" draggable="false" />
     <template v-else>{{ initial }}</template>
+    <slot />
   </span>
 </template>

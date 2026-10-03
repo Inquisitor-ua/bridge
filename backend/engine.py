@@ -27,6 +27,8 @@ class Player:
     eliminated: bool = False
     connected: bool = True
     user_id: int | None = None  # account id; None for a guest
+    avatar_url: str | None = None  # the account's picture, if it has one
+    username: str | None = None  # account login, for opening the profile
 
 
 class GameError(Exception):
@@ -822,6 +824,7 @@ class Engine:
             rows.append({
                 "id": p.id,
                 "name": p.name,
+                "avatar_url": p.avatar_url,
                 "hand": [c.to_dict() for c in p.hand],
                 "points": raw - before,
                 "score_before": before,
@@ -887,7 +890,7 @@ class Engine:
         # survivors first; then whoever lasted longer; ties by score
         ranked = sorted(self.players, key=lambda p: (p.eliminated, -self.eliminated_in.get(p.id, 0), p.score))
         self.standings = [
-            {"id": p.id, "name": p.name, "score": p.score, "eliminated": p.eliminated}
+            {"id": p.id, "name": p.name, "avatar_url": p.avatar_url, "score": p.score, "eliminated": p.eliminated}
             for p in ranked
         ]
         if ranked:
@@ -902,6 +905,8 @@ class Engine:
                 {
                     "id": p.id,
                     "name": p.name,
+                    "avatar_url": p.avatar_url,
+                    "username": p.username,
                     "hand_count": len(p.hand),
                     "score": p.score,
                     "eliminated": p.eliminated,

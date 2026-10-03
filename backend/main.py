@@ -27,13 +27,14 @@ app.include_router(stats.router)
 manager = RoomManager()
 
 
-def player_identity(token: str | None, fallback_name: str) -> tuple[str, int | None]:
-    """Name and account id for a player joining a room: a logged-in user
-    plays under their profile name, a guest under whatever they typed."""
+def player_identity(token: str | None, fallback_name: str) -> tuple[str, int | None, str | None, str | None]:
+    """Name, account id, avatar and login for a player joining a room: a
+    logged-in user plays under their profile, a guest under whatever they
+    typed."""
     user = auth.user_by_token(token)
     if user is None:
-        return fallback_name, None
-    return user["display_name"], user["id"]
+        return fallback_name, None, None, None
+    return user["display_name"], user["id"], auth.avatar_url(user), user["username"]
 
 
 async def broadcast_room(room) -> None:
@@ -83,8 +84,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 
             try:
                 if mtype == "create_room":
-                    name, user_id = player_identity(auth_token, msg.get("name", "Игрок"))
-                    room, player = manager.create_room(name, user_id)
+                    room, player = manager.create_room(*player_identity(auth_token, msg.get("name", "Игрок")))
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -92,8 +92,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     await broadcast_room(room)
 
                 elif mtype == "join_room":
-                    name, user_id = player_identity(auth_token, msg.get("name", "Игрок"))
-                    room, player = manager.join_room(msg.get("room", ""), name, user_id)
+                    room, player = manager.join_room(msg.get("room", ""), *player_identity(auth_token, msg.get("name", "Игрок")))
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,
@@ -106,6 +105,11 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                         await websocket.send_json({"type": "error", "message": "не удалось переподключиться"})
                         continue
                     room, player = result
+                    if player.user_id is not None:
+                        # pick up an avatar changed while away from the room
+                        user = auth.user_by_token(auth_token)
+                        if user is not None and user["id"] == player.user_id:
+                            player.avatar_url = auth.avatar_url(user)
                     room.sockets[player.id] = websocket
                     await websocket.send_json({
                         "type": "joined", "room": room.code, "player_id": player.id, "host_id": room.host_id,

@@ -4,6 +4,7 @@ import { state, playCards, drawCard, passTurn, leaveRoom, voteRematch } from "..
 import { playTurnChime, playCardDraw, playCardPlace, playShuffle, playRoundEnd, playGameWin, playGameLose } from "../sound.js";
 import PlayingCard from "./PlayingCard.vue";
 import Scoreboard from "./Scoreboard.vue";
+import UserAvatar from "./UserAvatar.vue";
 import PromptSuit from "./PromptSuit.vue";
 import PromptBridge from "./PromptBridge.vue";
 import PromptJackEnd from "./PromptJackEnd.vue";
@@ -642,6 +643,7 @@ function snapBack(originRect) {
       <ol class="standings-list">
         <li v-for="(s, i) in game.standings" :key="s.id" :class="{ winner: i === 0 && !s.eliminated, me: s.id === state.playerId }">
           <span class="standings-place">{{ i + 1 }}</span>
+          <UserAvatar :name="s.name" :src="s.avatar_url" class="standings-avatar" />
           <span class="standings-name">
             {{ s.name }}
             <span v-if="s.id === state.playerId" class="you">вы</span>

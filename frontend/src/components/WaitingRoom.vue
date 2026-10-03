@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { state, startGame, leaveRoom } from "../store.js";
+import UserAvatar from "./UserAvatar.vue";
 
 const MAX_PLAYERS = 6;
 
@@ -15,10 +16,6 @@ function copyCode() {
     copied.value = true;
     setTimeout(() => (copied.value = false), 1400);
   });
-}
-
-function initial(name) {
-  return (name || "?").trim().charAt(0).toUpperCase();
 }
 </script>
 
@@ -38,7 +35,7 @@ function initial(name) {
 
       <TransitionGroup tag="ul" name="seat" class="seat-list">
         <li v-for="p in players" :key="p.id" class="seat" :class="{ me: p.id === state.playerId }">
-          <span class="avatar">{{ initial(p.name) }}</span>
+          <UserAvatar :name="p.name" :src="p.avatar_url" />
           <span class="seat-name">{{ p.name }}</span>
           <span v-if="p.id === state.hostId" class="tag gold">хост</span>
           <span v-if="p.id === state.playerId" class="tag">вы</span>

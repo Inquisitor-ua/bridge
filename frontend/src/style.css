@@ -656,6 +656,10 @@ button.ghost:hover:not(:disabled) {
   box-shadow: 0 0 0 3px rgba(200, 169, 106, 0.16);
 }
 .player-chip.eliminated { opacity: 0.4; }
+.player-chip.clickable { cursor: pointer; }
+.player-chip.clickable:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.player-chip.clickable.turn:hover { border-color: var(--gold); }
+.player-chip.clickable:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* emotes: a bubble that pops over the sender's avatar for a few seconds */
 .scoreboard-wrap { position: relative; margin: 12px 0; }
@@ -1320,7 +1324,9 @@ button.ghost:hover:not(:disabled) {
 }
 .standings-place { width: 22px; font-family: var(--font-serif); font-size: 1.3rem; color: var(--muted); }
 .standings-list li.winner .standings-place { color: var(--gold); }
-.standings-name { flex: 1; font-weight: 600; }
+.standings-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.standings-avatar { width: 34px; height: 34px; font-size: 0.95rem; }
+.standings-list li.winner .standings-avatar { border-color: var(--gold-line); }
 .standings-score { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-2); min-width: 3ch; text-align: right; }
 .standings-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .standings-actions button { flex: 1 1 160px; }
@@ -1590,8 +1596,10 @@ button.ghost:hover:not(:disabled) {
 }
 .rs-score-row.me { border-color: var(--gold-line); }
 .rs-score-row.winner { background: linear-gradient(90deg, rgba(200, 169, 106, 0.1), transparent 70%); }
-.rs-name { font-weight: 600; overflow-wrap: anywhere; }
-.rs-crown { color: var(--gold); margin-right: 4px; }
+.rs-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rs-avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+.rs-score-row.winner .rs-avatar { border-color: var(--gold-line); }
+.rs-crown { color: var(--gold); margin-right: -4px; }
 .rs-you {
   font-size: 0.62rem;
   font-weight: 600;
@@ -1716,8 +1724,10 @@ button.ghost:hover:not(:disabled) {
 .user-btn-avatar { width: 24px; height: 24px; font-size: 0.8rem; color: var(--gold-2); border-color: var(--gold-line); }
 .user-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* an avatar with a picture: the image fills the circle */
-.avatar.has-image { overflow: hidden; background: var(--bg-raised); }
+/* an avatar with a picture: the image fills the circle. No overflow:hidden
+   on the avatar itself -- at the table the connection dot and emote bubbles
+   stick out of it */
+.avatar.has-image { background: var(--bg-raised); }
 .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
 .visually-hidden {
@@ -1850,6 +1860,19 @@ button.avatar-edit:disabled { opacity: 1; cursor: progress; }
 }
 .profile-facts dd { margin: 6px 0 0; color: var(--ink); font-size: 0.95rem; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+/* mini profile opened from the table; above the in-game prompts */
+.player-card-backdrop { z-index: 300; }
+.modal.player-card { position: relative; width: min(100%, 400px); }
+.player-card-avatar { width: 84px; height: 84px; margin: 4px auto 0; font-size: 2.3rem; color: var(--gold-2); border-color: var(--gold-line); }
+.modal .player-card-name { margin: 14px 0 4px; overflow-wrap: anywhere; }
+.player-card-sub { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.player-card .auth-error,
+.player-card-loading { margin: 22px 0 0; }
+.player-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 22px; text-align: left; }
+.player-card-stats .kpi { padding: 12px; }
+.player-card-stats .kpi-value { font-size: 1.4rem; }
+.player-card-open { margin-top: 20px; }
+
 /* profile statistics */
 .pstats-title {
   margin: 0 0 18px;
